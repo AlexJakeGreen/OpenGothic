@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -42,16 +43,24 @@ class WeatherFx final {
       bool                 started = false;
       };
 
+    void  tickSplashes(float level, const Tempest::Vec3& pos);
     void  initLayers();
     void  tickThunder(uint64_t dt, const Tempest::Vec3& pos);
     void  initSounds();
     void  tickLoop(Loop& l, float volume, const Tempest::Vec3& pos);
     void  setLayer(Layer& l, float level, const Tempest::Vec3& pos);
     float skyOpenness(const Tempest::Vec3& pos) const;
-    static std::unique_ptr<ParticleFx> makeFx(const char* name, const char* texture);
+    static std::unique_ptr<ParticleFx> makeFx(const char* name, const char* texture, const char* blend);
 
     World&  owner;
     Layer   rain, splash, snow;
+
+    // splashes: small emitters moved to random spots on whatever surface is found below
+    static constexpr size_t SplashPoints = 24;
+    std::array<PfxEmitter,SplashPoints> splashPts;
+    std::array<bool,SplashPoints>       splashOk = {};
+    size_t                              splashNext = 0;
+    std::minstd_rand                    rng{12345};
     Loop    rainSnd, snowSnd;
     std::vector<std::string> thunderNames;
     std::vector<Thunder>     thunder;

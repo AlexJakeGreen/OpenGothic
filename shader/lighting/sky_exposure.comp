@@ -107,15 +107,19 @@ void main() {
     const vec3  ambient      = scene.ambient  * tr;
 
     const vec3  light  = sunColor*Fd_Lambert + ambient + skyIrradiance();
-    const float objLum = dot(light, vec3(0.2125, 0.7154, 0.0721));
-    const float skyLum = (vmin + vmax) * 0.5 * scene.GSunIntensity;
+    // a lightning flash must not drive exposure down: take its boost (see Sky::updateLight and
+    // clouds.glsl) out of the measured brightness, so the flash stays bright on screen
+    const float objLum = dot(light, vec3(0.2125, 0.7154, 0.0721)) / (1.0 + 10.0*scene.lightning);
+    const float skyLum = (vmin + vmax) * 0.5 * scene.GSunIntensity / (1.0 + 20.0*scene.lightning);
 
     const float lum    = max(objLum*2.5, skyLum*clouds*1.5);
 
     // float lum = tr.b;
     scene.sunColor     = sunColor * clouds * push.sunOcclusion;
     scene.ambient      = ambient  * clouds;
-    scene.exposure     = 1.0 / max(lum*1.25 + push.baseL, 0.0000001);
+    // keep an overcast sky dark: do not let auto-exposure fully cancel the dimmed light
+    const float overcastDim = mix(1.0, 0.4, scene.overcast);
+    scene.exposure     = overcastDim / max(lum*1.25 + push.baseL, 0.0000001);
     //scene.exposure     = 1.0 / max(6400, 0.0000005);
     scene.luminanceMed = lum;
     }

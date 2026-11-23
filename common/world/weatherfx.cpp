@@ -15,21 +15,24 @@ using namespace Tempest;
 
 // All particle numbers below are our own choice. Units: centimetres and milliseconds.
 namespace {
-constexpr float rainPps        = 1600.f;
+constexpr float rainPps        = 3600.f;
 constexpr float rainSpeed      = 1.0f;
 constexpr float rainLife       = 1500.f;
-constexpr float splashPps      = 500.f;
-constexpr float splashLife     = 300.f;
+constexpr float splashPps      = 480.f;   // all splash emitters together
+constexpr float splashRadius   = 900.f;
+constexpr int   splashProbes   = 2;       // new spots tried per tick
+constexpr float splashLife     = 350.f;
 constexpr float snowPps        = 700.f;
 constexpr float snowSpeed      = 0.12f;
 constexpr float snowLife       = 7000.f;
 constexpr float areaRadius     = 1200.f;
 constexpr float areaHeight     = 800.f;
-constexpr float maxTiltDeg     = 40.f;
+constexpr float baseTiltDeg    = 18.f;   // rain always falls a little slanted
+constexpr float maxTiltDeg     = 45.f;
 constexpr float tiltPerWind    = 25.f;
 constexpr float openThreshold  = 0.2f;   // below this the sky counts as covered
 constexpr float soundMaxDist   = 100000.f;
-constexpr float rainVolume     = 0.8f;
+constexpr float rainVolume     = 1.0f;
 constexpr float snowVolume     = 0.6f;
 constexpr float speedOfSound   = 343.f;  // m/s
 constexpr float thunderVolume  = 1.0f;
@@ -38,10 +41,10 @@ constexpr float thunderPlaceDist = 2500.f; // cm, where the sound source is put 
 constexpr float shelteredGain  = 0.12f;  // loudness when fully under cover
 }
 
-std::unique_ptr<ParticleFx> WeatherFx::makeFx(const char* name, const char* texture) {
+std::unique_ptr<ParticleFx> WeatherFx::makeFx(const char* name, const char* texture, const char* blend) {
   zenkit::IParticleEffect src {};
   src.vis_name_s       = texture;
-  src.vis_alpha_func_s = "BLEND";
+  src.vis_alpha_func_s = blend;
   src.shp_type_s       = "BOX";
   src.shp_for_s        = "OBJECT";
   src.dir_mode_s       = "DIR";
@@ -53,14 +56,14 @@ std::unique_ptr<ParticleFx> WeatherFx::makeFx(const char* name, const char* text
   src.shp_dim_s        = "0 0 0";
   src.pps_fps          = 1;
   src.pps_is_looping   = 1;
-  src.use_emitters_for = 1;
+  src.use_emitters_for = 0; // particles stay where they were born, they do not follow the player
   src.shp_is_volume    = 1;
   return std::make_unique<ParticleFx>(src, name);
   }
 
 WeatherFx::WeatherFx(World& owner) : owner(owner) {
   const float wind = Gothic::settingsGetF("SKY_OUTDOOR","zRainWindScale");
-  windTilt = std::clamp(wind*tiltPerWind, 0.f, maxTiltDeg);
+  windTilt = std::clamp(baseTiltDeg + wind*tiltPerWind, 0.f, maxTiltDeg);
   initLayers();
   initSounds();
   }
@@ -70,37 +73,38 @@ WeatherFx::~WeatherFx() = default;
 void WeatherFx::initLayers() {
   const float perTier = 1.f/float(Tiers);
 
-  rain.fx = makeFx("WEATHER_RAIN","SKYRAIN.TGA");
+  rain.fx = makeFx("WEATHER_RAIN","SKYRAIN.TGA","ADD");
   {
     auto& p = *rain.fx;
     p.ppsValue         = rainPps*perTier;
     p.shpDim           = Vec3(areaRadius, 100.f, areaRadius);
     p.shpOffsetVec     = Vec3(0.f, areaHeight, 0.f);
     p.dirAngleElev     = -(90.f - windTilt);
+    p.dirAngleElevVar  = 5.f;   // drops differ a little, as in gusty wind
     p.velAvg           = rainSpeed;
     p.lspPartAvg       = rainLife;
     p.visOrientation   = ParticleFx::Orientation::Velocity;
-    p.visSizeStart     = Vec2(2.f, 45.f);
+    p.visSizeStart     = Vec2(3.f, 80.f);
     p.visSizeEndScale  = 1.f;
-    p.visAlphaStart    = 0.55f;
-    p.visAlphaEnd      = 0.55f;
+    p.visAlphaStart    = 0.6f;
+    p.visAlphaEnd      = 0.6f;
     }
 
-  splash.fx = makeFx("WEATHER_SPLASH","SKYRAINSPLASH.TGA");
+  splash.fx = makeFx("WEATHER_SPLASH","SKYRAINSPLASH.TGA","BLEND");
   {
     auto& p = *splash.fx;
-    p.ppsValue         = splashPps*perTier;
-    p.shpDim           = Vec3(areaRadius, 0.f, areaRadius);
+    p.ppsValue         = splashPps/float(SplashPoints);
+    p.shpType          = ParticleFx::EmitterType::Point;
     p.dirAngleElev     = 90.f;
     p.velAvg           = 0.f;
     p.lspPartAvg       = splashLife;
-    p.visSizeStart     = Vec2(18.f, 18.f);
-    p.visSizeEndScale  = 2.f;
-    p.visAlphaStart    = 0.7f;
+    p.visSizeStart     = Vec2(10.f, 10.f);   // a quick small ring that grows and fades
+    p.visSizeEndScale  = 2.5f;
+    p.visAlphaStart    = 0.8f;
     p.visAlphaEnd      = 0.f;
     }
 
-  snow.fx = makeFx("WEATHER_SNOW","SNOW.TGA");
+  snow.fx = makeFx("WEATHER_SNOW","SNOW.TGA","BLEND");
   {
     auto& p = *snow.fx;
     p.ppsValue         = snowPps*perTier;
@@ -117,12 +121,50 @@ void WeatherFx::initLayers() {
     p.visAlphaEnd      = 0.9f;
     }
 
-  for(Layer* l : {&rain, &splash, &snow})
+  for(Layer* l : {&rain, &snow})
     for(auto& e : l->em) {
       e = PfxEmitter(owner, l->fx.get());
       e.setLooped(true);
       e.setActive(false);
       }
+
+  for(auto& e : splashPts) {
+    e = PfxEmitter(owner, splash.fx.get());
+    e.setLooped(true);
+    e.setActive(false);
+    }
+  }
+
+void WeatherFx::tickSplashes(float level, const Vec3& pos) {
+  auto* phys = owner.physic();
+  if(phys==nullptr)
+    return;
+
+  // move a few emitters to new random spots; a spot must face up and be open to the sky
+  for(int k=0; k<splashProbes; ++k) {
+    const size_t idx = splashNext++ % SplashPoints;
+    const float  a   = float(rng()%6283)/1000.f;
+    const float  r   = splashRadius*std::sqrt(float(rng()%1000)/1000.f);
+    const Vec3   from = pos + Vec3(std::cos(a)*r, 300.f, std::sin(a)*r);
+    const auto   hit  = phys->ray(from, from-Vec3(0.f,1800.f,0.f));
+
+    bool ok = hit.hasCol && std::abs(hit.n.y)>0.5f;
+    if(ok) {
+      const Vec3 at = hit.v + Vec3(0.f,3.f,0.f);
+      ok = !phys->ray(at, at+Vec3(0.f,3000.f,0.f)).hasCol;
+      if(ok)
+        splashPts[idx].setPosition(at);
+      }
+    splashOk[idx] = ok;
+    }
+
+  for(size_t i=0; i<SplashPoints; ++i) {
+    auto& e = splashPts[i];
+    if(e.isEmpty())
+      continue;
+    const float tier = float(i*Tiers/SplashPoints)/float(Tiers);
+    e.setActive(splashOk[i] && level>tier+0.01f);
+    }
   }
 
 void WeatherFx::initSounds() {
@@ -250,14 +292,6 @@ void WeatherFx::tick(uint64_t dt) {
   const float rainLevel = w.rainIntensity()*open;
   const float snowLevel = w.snowIntensity()*open;
 
-  // splashes sit on the ground below the player
-  Vec3 ground = pos;
-  if(auto* phys = owner.physic()) {
-    auto r = phys->ray(pos+Vec3(0,100,0), pos-Vec3(0,2000,0));
-    if(r.hasCol)
-      ground = r.v;
-    }
-
   // sound follows intensity and is much quieter under cover
   const float gain = shelteredGain + (1.f-shelteredGain)*openness;
   tickLoop(rainSnd, w.rainIntensity()*gain*rainVolume, pos);
@@ -266,6 +300,6 @@ void WeatherFx::tick(uint64_t dt) {
   tickThunder(dt,pos);
 
   setLayer(rain,   rainLevel, pos);
-  setLayer(splash, rainLevel, ground);
+  tickSplashes(rainLevel, pos);
   setLayer(snow,   snowLevel, pos);
   }
