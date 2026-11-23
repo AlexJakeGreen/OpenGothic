@@ -475,8 +475,9 @@ void Gothic::emitGlobalSound(const Tempest::Sound &sfx) {
   sndStorage.push_back(std::move(s));
   }
 
-void Gothic::emitGlobalSoundWav(std::string_view wav) {
+void Gothic::emitGlobalSoundWav(std::string_view wav, float volume) {
   auto s = sndDev.load(Resources::loadSoundBuffer(wav));
+  s.setVolume(volume);
   s.play();
 
   for(size_t i=0;i<sndStorage.size();){

@@ -118,7 +118,7 @@ class Gothic final {
     void         emitGlobalSound(const SoundFx*     sfx);
     void         emitGlobalSound(const Tempest::Sound& sfx);
 
-    void         emitGlobalSoundWav(std::string_view wav);
+    void         emitGlobalSoundWav(std::string_view wav, float volume = 1.f);
 
     static auto  invCatOrder()  -> const std::vector<ItmFlags>&;
 

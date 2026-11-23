@@ -1241,7 +1241,9 @@ void MainWindow::render(){
 
     static bool once=true;
     if(once) {
-      Gothic::inst().emitGlobalSoundWav("GAMESTART.WAV");
+      // the start jingle is music: it follows the music settings, not the effects volume
+      if(Gothic::settingsGetI("SOUND","musicEnabled")!=0)
+        Gothic::inst().emitGlobalSoundWav("GAMESTART.WAV", Gothic::settingsGetF("SOUND","musicVolume"));
       once=false;
       }
 
