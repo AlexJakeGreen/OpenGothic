@@ -87,6 +87,9 @@ void main() {
   float tr  = mst.a;
 
   vec3  lum = val.rgb + mst.rgb; // - maxVal;
+  // overcast: haze loses colour and some brightness (our own choice of factors)
+  lum = mix(lum, vec3(dot(lum, vec3(0.2126, 0.7152, 0.0722)))*0.7, scene.overcast);
+
   lum *= scene.GSunIntensity;
   lum *= scene.exposure;
 

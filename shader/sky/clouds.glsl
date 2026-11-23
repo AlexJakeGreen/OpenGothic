@@ -44,7 +44,7 @@ vec4 clouds(vec3 at, float nightPhase, vec3 highlight,
   return color;
   }
 
-vec3 applyClouds(vec3 skyColor, in sampler2D skyLUT, vec3 plPos, vec3 sunDir, vec3 view, float nightPhase,
+vec3 applyClouds(vec3 skyColor, in sampler2D skyLUT, vec3 plPos, vec3 sunDir, vec3 view, float nightPhase, float overcast,
                  vec2 dxy0, vec2 dxy1,
                  in sampler2D dayL1,   in sampler2D dayL0,
                  in sampler2D nightL1, in sampler2D nightL0) {
@@ -61,6 +61,11 @@ vec3 applyClouds(vec3 skyColor, in sampler2D skyLUT, vec3 plPos, vec3 sunDir, ve
   vec4 cloud = clouds((plPos + view*L)*0.01, nightPhase, lum,
                       dxy0, dxy1,
                       dayL1,dayL0, nightL1,nightL0);
+  // overcast: grey the clear sky, make the clouds denser and darker
+  float luma = dot(skyColor, vec3(0.2126, 0.7152, 0.0722));
+  skyColor   = mix(skyColor, vec3(luma)*0.35, overcast);
+  cloud.a    = min(cloud.a*(1.0 + 4.0*overcast), 1.0);
+  cloud.rgb *= 1.0 - 0.5*overcast;
   return skyColor + cloud.rgb * cloud.a;
   // return mix(skyColor, cloud.rgb, cloud.a);
   }
