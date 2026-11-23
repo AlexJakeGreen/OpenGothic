@@ -6,6 +6,8 @@
 #include "world/objects/npc.h"
 #include "world/world.h"
 #include "game/gamesession.h"
+#include "game/definitions/sounddefinitions.h"
+#include "sound/soundfx.h"
 #include "resources.h"
 #include "gothic.h"
 
@@ -29,6 +31,10 @@ constexpr float openThreshold  = 0.2f;   // below this the sky counts as covered
 constexpr float soundMaxDist   = 100000.f;
 constexpr float rainVolume     = 0.8f;
 constexpr float snowVolume     = 0.6f;
+constexpr float speedOfSound   = 343.f;  // m/s
+constexpr float thunderVolume  = 1.0f;
+constexpr float thunderFarMeters = 3000.f;
+constexpr float thunderPlaceDist = 2500.f; // cm, where the sound source is put around the player
 constexpr float shelteredGain  = 0.12f;  // loudness when fully under cover
 }
 
@@ -135,6 +141,53 @@ void WeatherFx::initSounds() {
     };
   load(rainSnd,"RAIN_01.WAV");
   load(snowSnd,"SNOW_01.WAV");
+
+  // thunder samples are whatever sound definitions mention THUNDER
+  thunderNames = Gothic::sfx().namesContaining("THUNDER");
+  }
+
+void WeatherFx::tickThunder(uint64_t dt, const Vec3& pos) {
+  auto* game = Gothic::inst().gameSession();
+
+  float dist = 0;
+  if(game!=nullptr && !thunderNames.empty() && owner.weather().takeStrike(dist)) {
+    // pick samples in turn; the sound arrives after the flash, later when the strike is far
+    auto* fx = Gothic::inst().loadSoundFx(thunderNames[thunderNext%thunderNames.size()]);
+    ++thunderNext;
+    bool loop = false;
+    if(fx!=nullptr) {
+      Thunder t;
+      t.eff = game->loadSound(*fx,loop);
+      if(!t.eff.isEmpty()) {
+        const float k = std::clamp(1.f - dist/thunderFarMeters, 0.15f, 1.f);
+        const float a = float(thunderNext)*2.4f; // direction: spread around the player
+        t.eff.setMaxDistance(soundMaxDist);
+        t.eff.setPosition(pos + Vec3(std::cos(a),0.f,std::sin(a))*thunderPlaceDist);
+        t.eff.setVolume(thunderVolume*k*(shelteredGain*2.f+(1.f-shelteredGain*2.f)*openness));
+        t.delay = dist/speedOfSound*1000.f;
+        thunder.push_back(std::move(t));
+        }
+      }
+    }
+
+  for(size_t i=0; i<thunder.size();) {
+    auto& t = thunder[i];
+    if(!t.started) {
+      t.delay -= float(dt);
+      if(t.delay<=0.f) {
+        t.eff.play();
+        t.started = true;
+        }
+      ++i;
+      continue;
+      }
+    if(t.eff.isFinished()) {
+      thunder[i] = std::move(thunder.back());
+      thunder.pop_back();
+      continue;
+      }
+    ++i;
+    }
   }
 
 void WeatherFx::tickLoop(Loop& l, float volume, const Vec3& pos) {
@@ -209,6 +262,8 @@ void WeatherFx::tick(uint64_t dt) {
   const float gain = shelteredGain + (1.f-shelteredGain)*openness;
   tickLoop(rainSnd, w.rainIntensity()*gain*rainVolume, pos);
   tickLoop(snowSnd, w.snowIntensity()*gain*snowVolume, pos);
+
+  tickThunder(dt,pos);
 
   setLayer(rain,   rainLevel, pos);
   setLayer(splash, rainLevel, ground);

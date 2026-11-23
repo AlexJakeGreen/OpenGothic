@@ -380,6 +380,7 @@ void World::tick(uint64_t dt) {
   wobj.tick(dt,dt);
   wdynamic->tick(dt);
   wweather.tick(game.time());
+  wweather.tickLightning(dt);
   if(wfx==nullptr && wview!=nullptr)
     wfx = std::make_unique<WeatherFx>(*this);
   if(wfx!=nullptr)

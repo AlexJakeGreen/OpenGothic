@@ -3,6 +3,8 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include <Tempest/SoundEffect>
 
@@ -34,7 +36,14 @@ class WeatherFx final {
       bool                 playing = false;
       };
 
+    struct Thunder final {
+      Tempest::SoundEffect eff;
+      float                delay = 0;   // ms until it is heard
+      bool                 started = false;
+      };
+
     void  initLayers();
+    void  tickThunder(uint64_t dt, const Tempest::Vec3& pos);
     void  initSounds();
     void  tickLoop(Loop& l, float volume, const Tempest::Vec3& pos);
     void  setLayer(Layer& l, float level, const Tempest::Vec3& pos);
@@ -44,6 +53,9 @@ class WeatherFx final {
     World&  owner;
     Layer   rain, splash, snow;
     Loop    rainSnd, snowSnd;
+    std::vector<std::string> thunderNames;
+    std::vector<Thunder>     thunder;
+    size_t  thunderNext = 0;
     float   openness = 1.f;   // smoothed, 0..1
     float   windTilt = 0.f;   // degrees from vertical
   };

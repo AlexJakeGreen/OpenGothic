@@ -19,7 +19,7 @@ class Sky final {
     Sky(std::string_view wname);
     ~Sky();
 
-    void updateLight(const gtime gameTime, float overcast);
+    void updateLight(const gtime gameTime, float overcast, float lightning);
 
     const LightSource&        sunLight()         const { return sun;     }
     const Tempest::Vec3&      ambientLight()     const { return ambient; }
@@ -32,6 +32,7 @@ class Sky final {
     // dense rain clouds replace the day layers once the sky is mostly covered
     const State&              cloudsDay()   const { return (overcast>=rainLayerAt && rainClouds.lay[0]!=nullptr) ? rainClouds : clouds[0]; }
     float                     overcastLevel() const { return overcast; }
+    float                     lightningLevel() const { return lightning; }
     const State&              cloudsNight() const { return clouds[1]; }
     Tempest::Vec2             cloudsOffset(int layer, uint64_t tickCount) const;
     float                     isNight() const;
@@ -46,6 +47,7 @@ class Sky final {
     State                         clouds[2]; //day, night;
     State                         rainClouds;
     float                         overcast = 0;
+    float                         lightning = 0;
     static constexpr float        rainLayerAt = 0.5f; // our own choice
 
     const Tempest::Texture2d*     sunImg   = &Resources::fallbackBlack();

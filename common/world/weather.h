@@ -31,6 +31,13 @@ class Weather final {
     bool  isThunderstorm() const { return channel[Rain].thunder && channel[Rain].value>0; }
     bool  isRaining() const { return channel[Rain].value>rainThreshold; }
 
+    // Lightning: driven by real elapsed time (milliseconds), separate from the game-time schedule.
+    void  tickLightning(uint64_t dt);
+    // brightness of the current flash, 0..1
+    float lightning() const { return flash; }
+    // true once per strike; `distanceMeters` is how far away it hit (thunder arrives later)
+    bool  takeStrike(float& distanceMeters);
+
     // how dark and heavy the sky is, 0..1 (rain dominates, snow is lighter)
     float overcast() const;
 
@@ -58,6 +65,12 @@ class Weather final {
     int64_t uniform(int64_t lo, int64_t hi);
 
     static constexpr float rainThreshold = 0.3f;
+
+    float         flash        = 0;
+    int64_t       flashAge     = -1;   // ms since the strike, -1 when idle
+    int64_t       nextStrike   = 0;    // ms until the next strike
+    bool          strikePending = false;
+    float         strikeDist   = 0;
 
     Channel       channel[2];
     bool          noAuto       = false;

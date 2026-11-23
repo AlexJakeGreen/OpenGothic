@@ -21,6 +21,11 @@ constexpr int64_t manualStopFade   = 5*minute;
 constexpr int     plainRainsFree   = 3;     // no lightning in the first rains
 constexpr float   thunderStep      = 0.15f; // added chance per further plain rain
 constexpr float   thunderMax       = 0.6f;
+constexpr int64_t strikeGapMin     = 6000;   // real ms between strikes
+constexpr int64_t strikeGapMax     = 22000;
+constexpr float   strikeDistMin    = 300.f;  // metres
+constexpr float   strikeDistMax    = 2500.f;
+constexpr float   stormMinRain     = 0.4f;   // no lightning while the rain is still weak
 constexpr float   rampPart         = 0.2f;  // fade in/out part of a window
 
 bool iequals(std::string_view a, std::string_view b) {
@@ -126,8 +131,57 @@ void Weather::tick(gtime now) {
     planDay(now.day());
   update(channel[Rain],t);
   update(channel[Snow],t);
-  if(debugAlwaysRain)
-    channel[Rain].value = 1.f;
+  if(debugAlwaysRain) {
+    channel[Rain].value   = 1.f;
+    channel[Rain].thunder = true;
+    }
+  }
+
+namespace {
+// two quick flashes with a gap, then a fade; age in milliseconds
+float flashShape(int64_t age) {
+  if(age<0)
+    return 0.f;
+  if(age<90)
+    return 1.f;
+  if(age<170)
+    return 0.15f;
+  if(age<280)
+    return 0.8f;
+  if(age<700)
+    return 0.8f*float(700-age)/420.f;
+  return 0.f;
+  }
+}
+
+void Weather::tickLightning(uint64_t dt) {
+  const int64_t d = int64_t(dt);
+  if(!isThunderstorm() || channel[Rain].value<stormMinRain) {
+    flashAge = -1;
+    flash    = 0;
+    return;
+    }
+  if(flashAge>=0) {
+    flashAge += d;
+    if(flashAge>=700)
+      flashAge = -1;
+    }
+  nextStrike -= d;
+  if(nextStrike<=0 && flashAge<0) {
+    flashAge      = 0;
+    nextStrike    = uniform(strikeGapMin,strikeGapMax);
+    strikeDist    = float(uniform(int64_t(strikeDistMin),int64_t(strikeDistMax)));
+    strikePending = true;
+    }
+  flash = flashShape(flashAge);
+  }
+
+bool Weather::takeStrike(float& distanceMeters) {
+  if(!strikePending)
+    return false;
+  strikePending  = false;
+  distanceMeters = strikeDist;
+  return true;
   }
 
 void Weather::startRain(gtime now) {

@@ -51,7 +51,7 @@ class WorldView {
 
     void dbgLights      (DbgPainter& p) const;
 
-    bool updateLights(const gtime gameTime, float overcast);
+    bool updateLights(const gtime gameTime, float overcast, float lightning);
     bool updateRtScene();
 
     void updateFrustrum (const Frustrum fr[]);

@@ -142,6 +142,7 @@ void SceneGlobals::setSky(const Sky& s) {
   uboGlobalCpu.cloudsDir[1]  = s.cloudsOffset(1, tickCount);
   uboGlobalCpu.isNight       = s.isNight();
   uboGlobalCpu.overcast      = s.overcastLevel();
+  uboGlobalCpu.lightning     = s.lightningLevel();
   uboGlobalCpu.exposure      = 1;
   }
 

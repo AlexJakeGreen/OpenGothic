@@ -90,7 +90,7 @@ vec3 applyClouds(vec3 skyColor) {
   vec3  plPos    = vec3(0, RPlanet + scene.plPosY, 0);
   vec3  pos1     = inverse(vec3(inPos,1.0));
   vec3  viewDir  = normalize(pos1);
-  return applyClouds(skyColor, skyLUT, plPos, scene.sunDir, viewDir, night, scene.overcast,
+  return applyClouds(skyColor, skyLUT, plPos, scene.sunDir, viewDir, night, scene.overcast, scene.lightning,
                      scene.cloudsDir.xy, scene.cloudsDir.zw,
                      textureDayL1,textureDayL0, textureNightL1,textureNightL0);
   }
