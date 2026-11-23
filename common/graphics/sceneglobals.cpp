@@ -144,6 +144,8 @@ void SceneGlobals::setSky(const Sky& s) {
   uboGlobalCpu.overcast      = s.overcastLevel();
   uboGlobalCpu.lightning     = s.lightningLevel();
   uboGlobalCpu.wetness       = s.wetnessLevel();
+  uboGlobalCpu.boltAzimuth   = s.boltAzimuth();
+  uboGlobalCpu.boltSeed      = s.boltShape();
   uboGlobalCpu.exposure      = 1;
   }
 

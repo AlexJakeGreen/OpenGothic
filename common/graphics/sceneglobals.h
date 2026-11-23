@@ -123,6 +123,8 @@ class SceneGlobals final {
       float                           overcast = 0;
       float                           lightning = 0;
       float                           wetness = 0;
+      float                           boltAzimuth = 0;
+      float                           boltSeed = 0;
       };
 
     Tempest::UniformBuffer<UboGlobal> uboGlobalPf[Resources::MaxFramesInFlight][V_Count];

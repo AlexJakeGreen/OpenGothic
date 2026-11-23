@@ -30,9 +30,6 @@ constexpr float baseTiltDeg    = 18.f;   // rain always falls a little slanted
 constexpr float maxTiltDeg     = 45.f;
 constexpr float tiltPerWind    = 25.f;
 constexpr float openThreshold  = 0.2f;   // below this the sky counts as covered
-constexpr float boltDistance   = 3200.f;  // cm, kept inside the particle range
-constexpr float boltCentreY    = 1100.f;  // cm above the player
-constexpr float boltOnMs       = 100.f;
 constexpr float soundMaxDist   = 100000.f;
 constexpr float rainVolume     = 1.0f;
 constexpr float snowVolume     = 0.6f;
@@ -116,23 +113,6 @@ void WeatherFx::initLayers() {
     p.visAlphaStart    = 0.9f;
     p.visAlphaEnd      = 0.f;
     }
-
-  boltFx = makeFx("WEATHER_BOLT","THUNDERSTORM_LIGHTNING.TGA","ADD");
-  {
-    auto& p = *boltFx;
-    p.ppsValue         = 30.f;
-    p.shpType          = ParticleFx::EmitterType::Point;
-    p.dirAngleElev     = 90.f;
-    p.velAvg           = 0.f;
-    p.lspPartAvg       = 450.f;
-    p.visSizeStart     = Vec2(3600.f, 3600.f);
-    p.visSizeEndScale  = 1.f;
-    p.visAlphaStart    = 1.f;
-    p.visAlphaEnd      = 0.f;
-    }
-  bolt = PfxEmitter(owner, boltFx.get());
-  bolt.setLooped(true);
-  bolt.setActive(false);
 
   snow.fx = makeFx("WEATHER_SNOW","SNOW_A0.TGA","BLEND",14.f);
   {
@@ -228,9 +208,8 @@ void WeatherFx::tickThunder(uint64_t dt, const Vec3& pos) {
     const float a    = base + (float(rng()%1000)/1000.f - 0.5f)*1.6f;  // within about +-45 degrees
     const Vec3  dir  = Vec3(std::cos(a),0.f,std::sin(a));
 
-    bolt.setPosition(pos + dir*boltDistance + Vec3(0.f,boltCentreY,0.f));
-    bolt.setActive(true);
-    boltOn = boltOnMs;
+    // the sky shader draws the bolt at this azimuth; the seed makes each bolt look different
+    owner.weather().setBolt(a, float(rng()%10000)/10000.f);
 
     // the sound arrives after the flash, later when the strike is far
     auto raw = loadThunderSample();
@@ -247,12 +226,6 @@ void WeatherFx::tickThunder(uint64_t dt, const Vec3& pos) {
         thunder.push_back(std::move(t));
         }
       }
-    }
-
-  if(boltOn>0.f) {
-    boltOn -= float(dt);
-    if(boltOn<=0.f)
-      bolt.setActive(false);
     }
 
   for(size_t i=0; i<thunder.size();) {

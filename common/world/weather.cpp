@@ -173,7 +173,9 @@ void Weather::tickLightning(uint64_t dt) {
     strikeDist    = float(uniform(int64_t(strikeDistMin),int64_t(strikeDistMax)));
     strikePending = true;
     }
-  flash = flashShape(flashAge);
+  // a far strike is dimmer
+  const float nearness = std::clamp(1.f - strikeDist/(strikeDistMax*1.1f), 0.2f, 1.f);
+  flash = flashShape(flashAge)*nearness;
   }
 
 bool Weather::takeStrike(float& distanceMeters) {

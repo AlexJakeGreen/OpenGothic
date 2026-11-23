@@ -61,6 +61,9 @@ Sky::Sky(std::string_view wname) {
       }
     }
 
+  if(auto* bolt = Resources::loadTexture("THUNDERSTORM_LIGHTNING.TGA"))
+    boltImg = bolt;
+
   GSunIntensity  = DirectSunLux;
   GMoonIntensity = DirectMoonLux;
 
@@ -87,7 +90,13 @@ float Sky::isNight() const {
   return 1.f - linearstep(-0.18f, 0.f, sun.dir().y);
   }
 
-void Sky::updateLight(const gtime gameTime, float overcastLevel, float lightningLevel, float wetnessLevel) {
+void Sky::updateLight(const gtime gameTime, const WeatherState& weather) {
+  const float overcastLevel  = weather.overcast;
+  const float lightningLevel = weather.lightning;
+  const float wetnessLevel   = weather.wetness;
+  boltAz   = weather.boltAzimuth;
+  boltSeed = weather.boltSeed;
+
   const int64_t now = gameTime.timeInDay().toInt();
 
   // https://www.suncalc.org/#/52.4561,13.4033,5/2020.06.28/13:09/1/3

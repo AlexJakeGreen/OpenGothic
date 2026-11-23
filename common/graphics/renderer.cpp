@@ -621,10 +621,16 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
 
   if(requiresRtScene())
     wview.updateRtScene();
-  wview.updateLights(gameTime,
-                     world!=nullptr ? world->weather().overcast()  : 0.f,
-                     world!=nullptr ? world->weather().lightning() : 0.f,
-                     world!=nullptr ? world->weather().wetness()   : 0.f);
+  ::Sky::WeatherState weatherState;
+  if(world!=nullptr) {
+    const auto& wt = world->weather();
+    weatherState.overcast    = wt.overcast();
+    weatherState.lightning   = wt.lightning();
+    weatherState.wetness     = wt.wetness();
+    weatherState.boltAzimuth = wt.boltAzimuth();
+    weatherState.boltSeed    = wt.boltShape();
+    }
+  wview.updateLights(gameTime, weatherState);
 
   if(requiresLightsTree())
     prepareLightsBvh(cmd, wview);
@@ -1897,6 +1903,7 @@ void Renderer::drawSky(Encoder<CommandBuffer>& cmd, const WorldView& wview) {
   cmd.setBinding(7, *wview.sky().cloudsDay()  .lay[1], Sampler::trillinear());
   cmd.setBinding(8, *wview.sky().cloudsNight().lay[0], Sampler::trillinear());
   cmd.setBinding(9, *wview.sky().cloudsNight().lay[1], Sampler::trillinear());
+  cmd.setBinding(10, wview.sky().boltImage(), Sampler::bilinear(ClampMode::ClampToEdge));
   cmd.setPipeline(skyShader);
   cmd.draw(nullptr, 0, 3);
   }

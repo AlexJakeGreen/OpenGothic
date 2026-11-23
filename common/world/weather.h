@@ -37,6 +37,11 @@ class Weather final {
     float lightning() const { return flash; }
     // true once per strike; `distanceMeters` is how far away it hit (thunder arrives later)
     bool  takeStrike(float& distanceMeters);
+    // where the current bolt is drawn: world azimuth (radians) and a seed that varies its shape;
+    // chosen by the visual side, which knows where the camera looks
+    void  setBolt(float azimuth, float seed) { boltAz = azimuth; boltSeed = seed; }
+    float boltAzimuth() const { return boltAz;   }
+    float boltShape()   const { return boltSeed; }
 
     // How wet the world looks, 0..1: follows the rain, weaker for a sheltered player, zero for snow.
     // Set by the visual side (it knows about shelter), read by the renderer.
@@ -77,6 +82,8 @@ class Weather final {
     int64_t       nextStrike   = 0;    // ms until the next strike
     bool          strikePending = false;
     float         strikeDist   = 0;
+    float         boltAz       = 0;
+    float         boltSeed     = 0;
 
     Channel       channel[2];
     bool          noAuto       = false;

@@ -19,7 +19,16 @@ class Sky final {
     Sky(std::string_view wname);
     ~Sky();
 
-    void updateLight(const gtime gameTime, float overcast, float lightning, float wetness);
+    // what the weather asks of the sky and lighting
+    struct WeatherState final {
+      float overcast    = 0;
+      float lightning   = 0;
+      float wetness     = 0;
+      float boltAzimuth = 0;   // world azimuth of the lightning bolt, radians
+      float boltSeed    = 0;   // varies the bolt's shape
+      };
+
+    void updateLight(const gtime gameTime, const WeatherState& weather);
 
     const LightSource&        sunLight()         const { return sun;     }
     const Tempest::Vec3&      ambientLight()     const { return ambient; }
@@ -34,6 +43,9 @@ class Sky final {
     float                     overcastLevel() const { return overcast; }
     float                     lightningLevel() const { return lightning; }
     float                     wetnessLevel()   const { return wetness;   }
+    float                     boltAzimuth()    const { return boltAz;    }
+    float                     boltShape()      const { return boltSeed;  }
+    const Tempest::Texture2d& boltImage()      const { return *boltImg;   }
     const State&              cloudsNight() const { return clouds[1]; }
     Tempest::Vec2             cloudsOffset(int layer, uint64_t tickCount) const;
     float                     isNight() const;
@@ -50,6 +62,9 @@ class Sky final {
     float                         overcast = 0;
     float                         lightning = 0;
     float                         wetness   = 0;
+    float                         boltAz    = 0;
+    float                         boltSeed  = 0;
+    const Tempest::Texture2d*     boltImg   = &Resources::fallbackBlack();
     static constexpr float        rainLayerAt = 0.5f; // our own choice
 
     const Tempest::Texture2d*     sunImg   = &Resources::fallbackBlack();

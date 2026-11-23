@@ -41,6 +41,8 @@ struct SceneDesc {
   float overcast;
   float lightning;
   float wetness;
+  float boltAzimuth;
+  float boltSeed;
   };
 
 struct LightSource {

@@ -24,6 +24,8 @@ layout(binding = 7) uniform sampler2D textureDayL1;
 layout(binding = 8) uniform sampler2D textureNightL0;
 layout(binding = 9) uniform sampler2D textureNightL1;
 
+layout(binding = 10) uniform sampler2D textureBolt;
+
 layout(location = 0) out vec4 outColor;
 
 vec3 inverse(vec3 pos) {
@@ -95,6 +97,33 @@ vec3 applyClouds(vec3 skyColor) {
                      textureDayL1,textureDayL0, textureNightL1,textureNightL0);
   }
 
+// Lightning bolt: the texture is placed on the sky around the strike azimuth. The seed mirrors,
+// scales and leans it, so that bolts differ.
+vec3 lightningBolt(vec3 view) {
+  if(scene.lightning<=0.0)
+    return vec3(0);
+
+  const float height = 0.95;  // radians of sky covered by the picture
+  const float width  = 0.55;
+  const float centre = 0.47;  // elevation of the middle, the bolt reaches from clouds toward the horizon
+
+  float azimuth = atan(view.z, view.x);
+  float dAz     = mod(azimuth - scene.boltAzimuth + M_PI, 2.0*M_PI) - M_PI;
+  float alt     = asin(clamp(view.y, -1.0, 1.0));
+
+  float mirror = fract(scene.boltSeed*13.7)>0.5 ? -1.0 : 1.0;
+  float scale  = 0.8 + 0.5*fract(scene.boltSeed*7.3);
+  float lean   = (fract(scene.boltSeed*3.1) - 0.5)*0.5;
+
+  vec2 q   = vec2(dAz*cos(alt)/(width*scale), (alt - centre)/(height*scale));
+  q.x     += q.y*lean;
+  q.x     *= mirror;
+  vec2 uv  = vec2(q.x + 0.5, 0.5 - q.y);
+  if(uv.x<0.0 || uv.x>1.0 || uv.y<0.0 || uv.y>1.0)
+    return vec3(0);
+  return texture(textureBolt, uv).rgb;
+  }
+
 void main() {
   const vec2 uv     = gl_FragCoord.xy*scene.screenResInv;
   const vec3 view   = viewVec();
@@ -113,6 +142,7 @@ void main() {
   lum = lum * scene.GSunIntensity;
 
   lum *= scene.exposure;
+  lum += lightningBolt(view) * (4.0*scene.lightning); // after exposure: it must stay bright
   lum += dither(gl_FragCoord.xy, SKY_DITHER_TARGET_BITS);
   outColor = vec4(lum, tr);
   }
