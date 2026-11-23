@@ -11,6 +11,7 @@
 
 #include "graphics/pfx/particlefx.h"
 #include "world/objects/pfxemitter.h"
+#include "world/shelter.h"
 
 class World;
 
@@ -49,7 +50,6 @@ class WeatherFx final {
     void  initSounds();
     void  tickLoop(Loop& l, float volume, const Tempest::Vec3& pos);
     void  setLayer(Layer& l, float level, const Tempest::Vec3& pos);
-    float skyOpenness(const Tempest::Vec3& pos) const;
     static std::unique_ptr<ParticleFx> makeFx(const char* name, const char* texture, const char* blend, float aniFps = 0.f);
 
     World&  owner;
@@ -64,6 +64,7 @@ class WeatherFx final {
     Loop    rainSnd, snowSnd;
     std::vector<Thunder>     thunder;
     size_t  thunderNext = 0;
-    float   openness = 1.f;   // smoothed, 0..1
+    Shelter shelter;
+    float   openness = 1.f;   // smoothed, 0..1, from the shelter
     float   windTilt = 0.f;   // degrees from vertical
   };

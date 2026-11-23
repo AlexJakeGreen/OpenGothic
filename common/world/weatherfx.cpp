@@ -70,7 +70,7 @@ std::unique_ptr<ParticleFx> WeatherFx::makeFx(const char* name, const char* text
   return std::make_unique<ParticleFx>(src, name);
   }
 
-WeatherFx::WeatherFx(World& owner) : owner(owner) {
+WeatherFx::WeatherFx(World& owner) : owner(owner), shelter(owner) {
   const float wind = Gothic::settingsGetF("SKY_OUTDOOR","zRainWindScale");
   windTilt = std::clamp(baseTiltDeg + wind*tiltPerWind, 0.f, maxTiltDeg);
   initLayers();
@@ -266,23 +266,6 @@ void WeatherFx::tickLoop(Loop& l, float volume, const Vec3& pos) {
     }
   }
 
-float WeatherFx::skyOpenness(const Vec3& pos) const {
-  auto* phys = owner.physic();
-  if(phys==nullptr)
-    return 1.f;
-  // a few rays straight up around the player: shelter means most of them hit something
-  const float r = 120.f;
-  const Vec3  offs[5] = { {0,0,0}, {r,0,0}, {-r,0,0}, {0,0,r}, {0,0,-r} };
-  int open = 0;
-  for(auto& o : offs) {
-    const Vec3 from = pos + o + Vec3(0.f, 150.f, 0.f);
-    const Vec3 to   = from + Vec3(0.f, 3000.f, 0.f);
-    if(!phys->ray(from,to).hasCol)
-      ++open;
-    }
-  return float(open)/float(std::size(offs));
-  }
-
 void WeatherFx::setLayer(Layer& l, float level, const Vec3& pos) {
   for(size_t i=0; i<Tiers; ++i) {
     auto& e = l.em[i];
@@ -301,8 +284,8 @@ void WeatherFx::tick(uint64_t dt) {
   const Vec3 pos = pl->position();
 
   const auto& w = owner.weather();
-  const float target = skyOpenness(pos);
-  openness += (target-openness)*std::min(1.f, float(dt)/400.f);
+  shelter.tick(dt,pos);
+  openness = shelter.openness();
   const float open = openness>openThreshold ? openness : 0.f;
 
   const float rainLevel = w.rainIntensity()*open;
