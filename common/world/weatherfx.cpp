@@ -244,10 +244,29 @@ void WeatherFx::tickThunder(uint64_t dt, const Vec3& pos) {
       Thunder t;
       t.eff = game->loadSound(raw);
       if(!t.eff.isEmpty()) {
-        const float k = std::clamp(1.f - dist/thunderFarMeters, 0.15f, 1.f);
+        // loudness falls steeply with distance: a near strike is a crack, a far one a low rumble
+        const float far = std::clamp(dist/thunderFarMeters, 0.f, 1.f);
+        const float k   = std::max(0.06f, (1.f-far)*(1.f-far));
+        // the source sits in the direction of the bolt, farther away for a far strike
+        const float place = thunderPlaceDist*(0.4f + 0.6f*far);
         t.eff.setMaxDistance(soundMaxDist);
-        t.eff.setPosition(pos + dir*thunderPlaceDist);
+        t.eff.setPosition(pos + dir*place);
         t.eff.setVolume(thunderVolume*k*(shelteredGain*2.f+(1.f-shelteredGain*2.f)*openness));
+        // the crack: a short impact sound, loud for near strikes and absent for far ones
+        static const char* cracks[] = {"MFX_THUNDERBALL_COLLIDE1.WAV","MFX_THUNDERBALL_COLLIDE2.WAV",
+                                       "MFX_THUNDERBALL_COLLIDE3.WAV","MFX_THUNDERBALL_COLLIDE4.WAV"};
+        const float crackK = std::max(0.f, 1.f - far*1.4f);
+        if(crackK>0.02f) {
+          auto cr = Resources::loadSoundBuffer(cracks[rng()%4]);
+          if(!cr.isEmpty()) {
+            t.crack = game->loadSound(cr);
+            if(!t.crack.isEmpty()) {
+              t.crack.setMaxDistance(soundMaxDist);
+              t.crack.setPosition(pos + dir*place);
+              t.crack.setVolume(thunderVolume*crackK*(shelteredGain*2.f+(1.f-shelteredGain*2.f)*openness));
+              }
+            }
+          }
         t.delay = dist/speedOfSound*1000.f;
         thunder.push_back(std::move(t));
         }
@@ -259,6 +278,8 @@ void WeatherFx::tickThunder(uint64_t dt, const Vec3& pos) {
     if(!t.started) {
       t.delay -= float(dt);
       if(t.delay<=0.f) {
+        if(!t.crack.isEmpty())
+          t.crack.play();
         t.eff.play();
         t.started = true;
         }

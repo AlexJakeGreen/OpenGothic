@@ -42,7 +42,8 @@ class WeatherFx final {
       };
 
     struct Thunder final {
-      Tempest::SoundEffect eff;
+      Tempest::SoundEffect eff;     // the long rumble
+      Tempest::SoundEffect crack;   // the sharp first crack, only audible for strikes that are not far
       float                delay = 0;   // ms until it is heard
       bool                 started = false;
       };
