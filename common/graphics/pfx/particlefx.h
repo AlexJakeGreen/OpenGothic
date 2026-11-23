@@ -121,6 +121,7 @@ class ParticleFx final {
     float         flockStrength = 0;
 
     bool          useEmittersFOR = true;
+    bool          weatherBoost   = false; // rain drops and splashes: brightened after lighting under an overcast sky
 
     std::string   timeStartEnd_S;
     bool          m_bIsAmbientPFX=false;

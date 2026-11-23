@@ -96,8 +96,9 @@ void WeatherFx::initLayers() {
     // the texture holds one thin streak in the middle of a square: the quad is wide enough for it
     p.visSizeStart     = Vec2(16.f, 90.f);
     p.visSizeEndScale  = 1.f;
-    p.visAlphaStart    = 0.45f;   // additive: a light streak, not a bright one
+    p.visAlphaStart    = 0.45f;
     p.visAlphaEnd      = 0.45f;
+    p.weatherBoost     = true;
     }
 
   splash.fx = makeFx("WEATHER_SPLASH","SKYRAINSPLASH.TGA","BLEND");
@@ -112,6 +113,7 @@ void WeatherFx::initLayers() {
     p.visSizeEndScale  = 1.8f;
     p.visAlphaStart    = 0.9f;
     p.visAlphaEnd      = 0.f;
+    p.weatherBoost     = true;
     }
 
   snow.fx = makeFx("WEATHER_SNOW","SNOW_A0.TGA","BLEND",14.f);
@@ -158,9 +160,16 @@ void WeatherFx::tickSplashes(float level, const Vec3& pos) {
     const Vec3   from = pos + Vec3(std::cos(a)*r, 300.f, std::sin(a)*r);
     const auto   hit  = phys->ray(from, from-Vec3(0.f,1800.f,0.f));
 
-    bool ok = hit.hasCol && std::abs(hit.n.y)>0.5f;
+    // water is a separate surface from the land collision: splashes also fall on it
+    bool  ok = hit.hasCol && std::abs(hit.n.y)>0.5f;
+    float surfaceY = ok ? hit.v.y : 0.f;
+    const auto water = phys->waterRay(Vec3(from.x, from.y-2200.f, from.z), 0.f);
+    if(water.hasCol && water.wdepth<from.y && (!hit.hasCol || water.wdepth>hit.v.y)) {
+      ok       = true;
+      surfaceY = water.wdepth;
+      }
     if(ok) {
-      const Vec3 at = hit.v + Vec3(0.f,3.f,0.f);
+      const Vec3 at = Vec3(hit.hasCol ? hit.v.x : from.x, surfaceY + 3.f, hit.hasCol ? hit.v.z : from.z);
       ok = !phys->ray(at, at+Vec3(0.f,3000.f,0.f)).hasCol;
       if(ok)
         splashPts[idx].setPosition(at);
@@ -310,7 +319,27 @@ void WeatherFx::setLayer(Layer& l, float level, const Vec3& pos) {
     }
   }
 
+// A global wind that changes slowly: its heading drifts, and it blows in gusts. Both rain and
+// snow lean with it; the strength scale comes from the INI (our own choice of periods).
+void WeatherFx::tickWind(uint64_t dt) {
+  windTime += double(dt)/1000.0;
+  const float heading = 70.f*std::sin(float(windTime/97.0)) + 40.f*std::sin(float(windTime/41.0) + 1.3f);
+  const float gust    = 0.75f + 0.25f*std::sin(float(windTime/13.0));
+  const float tilt    = std::clamp(windTilt*gust, 0.f, maxTiltDeg);
+
+  // only touch the shared effects when the change is noticeable
+  if(std::abs(heading-windHeading)<1.f && std::abs(tilt-windGustTilt)<0.5f)
+    return;
+  windHeading  = heading;
+  windGustTilt = tilt;
+  rain.fx->dirAngleHead = heading;
+  rain.fx->dirAngleElev = -(90.f - tilt);
+  snow.fx->dirAngleHead = heading;
+  snow.fx->dirAngleElev = -(90.f - tilt*0.5f);
+  }
+
 void WeatherFx::tick(uint64_t dt) {
+  tickWind(dt);
   auto* pl = owner.player();
   if(pl==nullptr)
     return;

@@ -68,5 +68,9 @@ class WeatherFx final {
     size_t  thunderNext = 0;
     Shelter shelter;
     float   openness = 1.f;   // smoothed, 0..1, from the shelter
+    void    tickWind(uint64_t dt);
+    double  windTime     = 0;
+    float   windHeading  = 1000.f;
+    float   windGustTilt = 1000.f;
     float   windTilt = 0.f;   // degrees from vertical
   };

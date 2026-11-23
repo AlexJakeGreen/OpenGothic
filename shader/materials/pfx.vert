@@ -155,6 +155,9 @@ vec4 processVertex(out Varyings shOut, in Vertex v, uint instanceId, uint vboOff
       v.pos -= v.size.z*depth;
   }
 
+#if defined(MAT_VARYINGS)
+  shOut.boost  = float(bitfieldExtract(v.bits0, 6, 1));
+#endif
 #if defined(MAT_UV)
   shOut.uv     = v.uv;
 #endif

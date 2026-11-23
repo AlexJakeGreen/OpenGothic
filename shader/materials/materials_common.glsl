@@ -106,6 +106,10 @@ struct Varyings {
   vec4 color;
 #endif
 
+#if (MESH_TYPE==T_PFX) && defined(MAT_VARYINGS)
+  float boost;  // 1 for rain drops and splashes, see weather
+#endif
+
 #if !defined(MAT_VARYINGS)
   float dummy; // GLSL has no support for empty structs
 #endif

@@ -137,6 +137,9 @@ vec4 dbgLambert() {
   }
 #endif
 
+// Rain drops and splashes get brighter under a dark storm sky, otherwise they vanish in it (our own choice)
+const float weatherBoostGain = 1.2;
+
 #if defined(MAT_UV)
 vec4 diffuseTex() {
 #if !defined(SIMPLE_MAT) && (MESH_TYPE!=T_PFX)
@@ -226,6 +229,9 @@ void mainForward(vec4 t) {
   color = textureAlbedo(color.rgb);
   color *= diffuseLight(alpha);
   color *= scene.exposure;
+#if (MESH_TYPE==T_PFX)
+  color *= 1.0 + shInp.boost*weatherBoostGain*scene.overcast;
+#endif
 
   outColor = vec4(color,alpha);
   }
@@ -234,6 +240,9 @@ void mainForward(vec4 t) {
 #if defined(EMISSIVE)
 void mainEmissive(vec4 t) {
   vec3 color = textureEmmisive(t.rgb);
+#if (MESH_TYPE==T_PFX)
+  color *= 1.0 + shInp.boost*weatherBoostGain*scene.overcast;
+#endif
   outColor = vec4(color,t.a);
   }
 #endif
