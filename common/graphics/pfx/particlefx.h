@@ -121,6 +121,7 @@ class ParticleFx final {
     float         flockStrength = 0;
 
     bool          useEmittersFOR = true;
+    bool          fadeNearCamera = false; // precipitation: fades out close to the camera instead of popping in front of the lens
     bool          weatherBoost   = false; // rain drops and splashes: brightened after lighting under an overcast sky
 
     std::string   timeStartEnd_S;

@@ -30,6 +30,7 @@ class WeatherFx final {
 
     struct Layer final {
       std::unique_ptr<ParticleFx>     fx;
+      std::array<std::unique_ptr<ParticleFx>,Tiers> tierFx; // optional: an own effect per tier
       std::array<PfxEmitter,Tiers>    em;
       };
 

@@ -21,7 +21,7 @@ constexpr float splashPps      = 480.f;   // all splash emitters together
 constexpr float splashRadius   = 900.f;
 constexpr int   splashProbes   = 2;       // new spots tried per tick
 constexpr float splashLife     = 350.f;
-constexpr float snowPps        = 700.f;
+constexpr float snowPps        = 1200.f;
 constexpr float snowSpeed      = 0.12f;
 constexpr float snowLife       = 7000.f;
 constexpr float areaRadius     = 1200.f;
@@ -87,8 +87,10 @@ void WeatherFx::initLayers() {
   {
     auto& p = *rain.fx;
     p.ppsValue         = rainPps*perTier;
-    p.shpDim           = Vec3(areaRadius, 100.f, areaRadius);
-    p.shpOffsetVec     = Vec3(0.f, areaHeight, 0.f);
+    // born anywhere in the column from the ground to the top, so that the ground ahead of a running
+    // player is already full of precipitation instead of being filled from the top
+    p.shpDim           = Vec3(areaRadius, areaHeight*0.5f, areaRadius);
+    p.shpOffsetVec     = Vec3(0.f, areaHeight*0.5f, 0.f);
     p.dirAngleElev     = -(90.f - windTilt);
     p.dirAngleElevVar  = 5.f;   // drops differ a little, as in gusty wind
     p.velAvg           = rainSpeed;
@@ -100,6 +102,7 @@ void WeatherFx::initLayers() {
     p.visAlphaStart    = 0.45f;
     p.visAlphaEnd      = 0.45f;
     p.weatherBoost     = true;
+    p.fadeNearCamera   = true;
     }
 
   splash.fx = makeFx("WEATHER_SPLASH","SKYRAINSPLASH.TGA","BLEND");
@@ -117,12 +120,21 @@ void WeatherFx::initLayers() {
     p.weatherBoost     = true;
     }
 
-  snow.fx = makeFx("WEATHER_SNOW","SNOW_A0.TGA","BLEND",14.f);
-  {
-    auto& p = *snow.fx;
+  // The flake picture comes as an animation, but the engine picks one frame per effect for all its
+  // particles, so every flake would jump at the same moment. Instead each tier shows one still frame
+  // (a different one per tier): flakes never change picture while they fall.
+  const char* snowFrames[Tiers] = {"SNOW_A0.TGA", "SNOW_A7.TGA", "SNOW_A13.TGA", "SNOW_A20.TGA"};
+  for(size_t t=0; t<Tiers; ++t) {
+    snow.tierFx[t] = makeFx("WEATHER_SNOW",snowFrames[t],"BLEND");
+    auto& p = *snow.tierFx[t];
+    p.visMaterial.frames.clear();   // keep the still picture only
+    if(auto* tex = Resources::loadTexture(snowFrames[t]))
+      p.visMaterial.tex = tex;
     p.ppsValue         = snowPps*perTier;
-    p.shpDim           = Vec3(areaRadius, 100.f, areaRadius);
-    p.shpOffsetVec     = Vec3(0.f, areaHeight, 0.f);
+    // born anywhere in the column from the ground to the top, so that the ground ahead of a running
+    // player is already full of precipitation instead of being filled from the top
+    p.shpDim           = Vec3(areaRadius, areaHeight*0.5f, areaRadius);
+    p.shpOffsetVec     = Vec3(0.f, areaHeight*0.5f, 0.f);
     p.dirAngleElev     = -(90.f - windTilt*0.5f);
     p.dirAngleElevVar  = 10.f;
     p.velAvg           = snowSpeed;
@@ -132,11 +144,13 @@ void WeatherFx::initLayers() {
     p.visSizeEndScale  = 1.f;
     p.visAlphaStart    = 0.9f;
     p.visAlphaEnd      = 0.9f;
+    p.fadeNearCamera   = true;
     }
 
   for(Layer* l : {&rain, &snow})
-    for(auto& e : l->em) {
-      e = PfxEmitter(owner, l->fx.get());
+    for(size_t t=0; t<Tiers; ++t) {
+      auto& e = l->em[t];
+      e = PfxEmitter(owner, l->tierFx[t] ? l->tierFx[t].get() : l->fx.get());
       e.setLooped(true);
       e.setActive(false);
       }
@@ -356,8 +370,10 @@ void WeatherFx::tickWind(uint64_t dt) {
   windGustTilt = tilt;
   rain.fx->dirAngleHead = heading;
   rain.fx->dirAngleElev = -(90.f - tilt);
-  snow.fx->dirAngleHead = heading;
-  snow.fx->dirAngleElev = -(90.f - tilt*0.5f);
+  for(auto& f : snow.tierFx) {
+    f->dirAngleHead = heading;
+    f->dirAngleElev = -(90.f - tilt*0.5f);
+    }
   }
 
 void WeatherFx::tick(uint64_t dt) {

@@ -70,6 +70,9 @@ void rotate(out vec3 rx, out vec3 ry, float a, in vec3 x, in vec3 y) {
   }
 
 vec4 processVertex(out Varyings shOut, in Vertex v, uint instanceId, uint vboOffset) {
+  // distance to the camera of the particle centre: precipitation fades out when it gets close
+  const float nearFade = (bitfieldExtract(v.bits0, 7, 1)!=0) ? smoothstep(150.0, 600.0, length(v.pos - scene.camPos)) : 1.0;
+
   // Bilboards
   {
     const float U[6]   = { 0, 1, 0,  0, 1, 1};
@@ -168,7 +171,7 @@ vec4 processVertex(out Varyings shOut, in Vertex v, uint instanceId, uint vboOff
   shOut.pos    = v.pos;
 #endif
 #if defined(MAT_COLOR)
-  shOut.color = unpackUnorm4x8(v.color);
+  shOut.color = unpackUnorm4x8(v.color)*nearFade;
 #endif
 
   return scene.viewProject*vec4(v.pos,1.0);
