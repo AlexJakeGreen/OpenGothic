@@ -16,6 +16,7 @@
 #include "worldobjects.h"
 #include "worldsound.h"
 #include "weather.h"
+#include "weatherfx.h"
 #include "waypoint.h"
 #include "waymatrix.h"
 
@@ -219,6 +220,7 @@ class World final {
     std::unique_ptr<DynamicWorld>         wdynamic;
     std::unique_ptr<WorldView>            wview;
     std::unique_ptr<GlobalEffects>        globFx;
+    std::unique_ptr<WeatherFx>            wfx;   // after wview: released first
     WorldSound                            wsound;
     WorldObjects                          wobj;
     std::unique_ptr<Npc>                  lvlInspector;

@@ -4,6 +4,9 @@
 #include <cctype>
 
 namespace {
+// TEMPORARY, for manual testing: keeps rain at full intensity. Remove before finishing.
+constexpr bool debugAlwaysRain = true;
+
 // all values below are our own choice
 constexpr int64_t minute = 60*1000;
 constexpr int64_t hour   = 60*minute;
@@ -123,6 +126,8 @@ void Weather::tick(gtime now) {
     planDay(now.day());
   update(channel[Rain],t);
   update(channel[Snow],t);
+  if(debugAlwaysRain)
+    channel[Rain].value = 1.f;
   }
 
 void Weather::startRain(gtime now) {
