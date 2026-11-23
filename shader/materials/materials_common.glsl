@@ -73,7 +73,7 @@ const uint L_VsmLights  = L_Shadow1;
 #define MAT_NORMAL 1
 #endif
 
-#if (defined(FLAT_NORMAL) && !defined(DEPTH_ONLY)) || defined(FORWARD) || defined(WATER)
+#if (defined(FLAT_NORMAL) && !defined(DEPTH_ONLY)) || defined(FORWARD) || defined(WATER) || defined(GBUFFER)
 #define MAT_POSITION 1
 #endif
 

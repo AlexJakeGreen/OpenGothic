@@ -72,10 +72,35 @@ vec3 luminance(vec3 norm) {
 #endif
   }
 
+// Puddles mirror the sky: the amount is stored in the high bits of the diffuse alpha.
+float puddleAmount(float hint) {
+  return float((int(hint*255.0 + 0.5) >> 4) & 15)/15.0;
+  }
+
+vec3 puddleReflection(vec3 norm, float puddle) {
+  // view direction of this pixel
+  const vec2 inPos = (2.0*gl_FragCoord.xy)*scene.screenResInv - 1.0;
+  vec4 p = scene.viewProjectInv*vec4(inPos, 1.0, 1.0);
+  const vec3 view = normalize(p.xyz/p.w - scene.camPos);
+  const vec3 refl = reflect(view, norm);
+
+  // a flat water film: weak at steep angles, strong at grazing ones
+  const float cosV    = clamp(dot(-view, norm), 0.0, 1.0);
+  const float fresnel = 0.08 + 0.7*pow(1.0 - cosV, 5.0);
+
+#if defined(SURFEL_GI)
+  const vec3 sky = scene.ambient*scene.exposure; // this path is pre-exposed
+#else
+  const vec3 sky = skyIrradiance(refl) + scene.ambient;
+#endif
+  return sky*fresnel*puddle;
+  }
+
 void main() {
   const ivec2 fragCoord = ivec2(gl_FragCoord.xy);
 
-  const vec3  diff = texelFetch(gbufDiffuse, fragCoord, 0).rgb;
+  const vec4  diff4 = texelFetch(gbufDiffuse, fragCoord, 0);
+  const vec3  diff  = diff4.rgb;
   const vec3  norm = normalFetch(gbufNormal, fragCoord);
 
   // const vec3  linear = vec3(1);
@@ -84,6 +109,9 @@ void main() {
 
   vec3 color = linear;
   color *= luminance(norm);
+  const float puddle = puddleAmount(diff4.a);
+  if(puddle>0.0)
+    color += puddleReflection(norm, puddle);
 #if defined(SURFEL_GI)
   //NOTE: pre-exposed already
   color *= ao;

@@ -8,6 +8,7 @@
 #endif
 
 #include "materials_common.glsl"
+#include "wet.glsl"
 #include "water/gerstner_wave.glsl"
 #include "lighting/shadow_sampling.glsl"
 #include "lighting/tonemapping.glsl"
@@ -66,7 +67,7 @@ bool isFlat() {
   return false;
   }
 
-float encodeHintBits() {
+float encodeHintBits(float puddle) {
   const int flt  = (isFlat() ? 1 : 0) << 1;
 #if defined(ATEST)
   const int atst = (1) << 2;
@@ -83,7 +84,8 @@ float encodeHintBits() {
   const int water = (0) << 3;
 #endif
 
-  return float(flt | atst | water)/255.0;
+  const int pud = int(clamp(puddle, 0.0, 1.0)*15.0 + 0.5) << 4; // puddle amount in the high bits
+  return float(flt | atst | water | pud)/255.0;
   }
 
 #if defined(GBUFFER)
@@ -182,9 +184,29 @@ vec4 diffuseTex() {
 
 #if defined(GBUFFER)
 void mainGBuffer(vec4 t) {
-  outDiffuse.rgb = t.rgb;
-  outDiffuse.a   = encodeHintBits();
-  outNormal      = encodeNormal(shInp.normal);
+  vec3  albedo = t.rgb;
+  vec3  normal = shInp.normal;
+  float puddle = 0.0;
+
+#if (MESH_TYPE!=T_PFX)
+  if(scene.wetness>0.0) {
+    albedo = wetAlbedo(albedo, scene.wetness);
+#  if (MESH_TYPE!=T_PFX)
+    puddle = puddleAmount(shInp.pos, normalize(shInp.normal), scene.wetness);
+    if(puddle>0.0) {
+      const float timeSec = float(scene.tickCount32 % 600000u)/1000.0;
+      const vec2  ripple  = rainRipples(shInp.pos.xz, timeSec)*rippleDistanceFade(length(shInp.pos - scene.camPos));
+      albedo *= mix(1.0, 0.7, puddle);    // darker inside a puddle
+      // flatter inside a puddle, and rings disturb the surface
+      normal  = normalize(mix(normalize(shInp.normal), vec3(0,1,0), 0.7*puddle) + vec3(ripple.x, 0.0, ripple.y)*puddle);
+      }
+#  endif
+    }
+#endif
+
+  outDiffuse.rgb = albedo;
+  outDiffuse.a   = encodeHintBits(puddle);
+  outNormal      = encodeNormal(normal);
   // outNormal      = vec4(flatNormal()*0.5 + vec3(0.5), 1.0);
 #if DEBUG_DRAW
   outDiffuse.rgb *= debugColors[debugId%debugColors.length()];
@@ -315,9 +337,16 @@ void mainWater(vec4 t) {
     wx.normal = -wx.normal;
     }
 
+  if(scene.wetness>0.0) {
+    // rain rings on large water surfaces
+    const float timeSec = float(scene.tickCount32 % 600000u)/1000.0;
+    const vec2  ripple  = rainRipples(shInp.pos.xz, timeSec)*scene.wetness*rippleDistanceFade(length(shInp.pos - scene.camPos));
+    wx.normal = normalize(wx.normal + vec3(ripple.x, 0.0, ripple.y));
+    }
+
   outColor       = waterShading(t,wx.normal);
   outDiffuse.rgb = t.rgb;
-  outDiffuse.a   = encodeHintBits();
+  outDiffuse.a   = encodeHintBits(0.0);
   outNormal      = encodeNormal(wx.normal);
   }
 #endif
