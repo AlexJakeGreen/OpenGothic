@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <memory>
 
+#include <Tempest/SoundEffect>
+
 #include "graphics/pfx/particlefx.h"
 #include "world/objects/pfxemitter.h"
 
@@ -27,13 +29,21 @@ class WeatherFx final {
       std::array<PfxEmitter,Tiers>    em;
       };
 
+    struct Loop final {
+      Tempest::SoundEffect eff;
+      bool                 playing = false;
+      };
+
     void  initLayers();
+    void  initSounds();
+    void  tickLoop(Loop& l, float volume, const Tempest::Vec3& pos);
     void  setLayer(Layer& l, float level, const Tempest::Vec3& pos);
     float skyOpenness(const Tempest::Vec3& pos) const;
     static std::unique_ptr<ParticleFx> makeFx(const char* name, const char* texture);
 
     World&  owner;
     Layer   rain, splash, snow;
+    Loop    rainSnd, snowSnd;
     float   openness = 1.f;   // smoothed, 0..1
     float   windTilt = 0.f;   // degrees from vertical
   };

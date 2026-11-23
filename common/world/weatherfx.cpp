@@ -5,6 +5,8 @@
 
 #include "world/objects/npc.h"
 #include "world/world.h"
+#include "game/gamesession.h"
+#include "resources.h"
 #include "gothic.h"
 
 using namespace Tempest;
@@ -24,6 +26,10 @@ constexpr float areaHeight     = 800.f;
 constexpr float maxTiltDeg     = 40.f;
 constexpr float tiltPerWind    = 25.f;
 constexpr float openThreshold  = 0.2f;   // below this the sky counts as covered
+constexpr float soundMaxDist   = 100000.f;
+constexpr float rainVolume     = 0.8f;
+constexpr float snowVolume     = 0.6f;
+constexpr float shelteredGain  = 0.12f;  // loudness when fully under cover
 }
 
 std::unique_ptr<ParticleFx> WeatherFx::makeFx(const char* name, const char* texture) {
@@ -50,6 +56,7 @@ WeatherFx::WeatherFx(World& owner) : owner(owner) {
   const float wind = Gothic::settingsGetF("SKY_OUTDOOR","zRainWindScale");
   windTilt = std::clamp(wind*tiltPerWind, 0.f, maxTiltDeg);
   initLayers();
+  initSounds();
   }
 
 WeatherFx::~WeatherFx() = default;
@@ -112,6 +119,42 @@ void WeatherFx::initLayers() {
       }
   }
 
+void WeatherFx::initSounds() {
+  auto* game = Gothic::inst().gameSession();
+  if(game==nullptr)
+    return;
+  auto load = [game](Loop& l, std::string_view name) {
+    auto raw = Resources::loadSoundBuffer(name);
+    if(raw.isEmpty())
+      return;
+    l.eff = game->loadSound(raw);
+    if(l.eff.isEmpty())
+      return;
+    l.eff.setMaxDistance(soundMaxDist);
+    l.eff.setVolume(0.f);
+    };
+  load(rainSnd,"RAIN_01.WAV");
+  load(snowSnd,"SNOW_01.WAV");
+  }
+
+void WeatherFx::tickLoop(Loop& l, float volume, const Vec3& pos) {
+  if(l.eff.isEmpty())
+    return;
+  if(volume<=0.001f) {
+    if(l.playing) {
+      l.eff.pause();
+      l.playing = false;
+      }
+    return;
+    }
+  l.eff.setPosition(pos);
+  l.eff.setVolume(volume);
+  if(!l.playing || l.eff.isFinished()) { // the sample is restarted by hand to loop
+    l.eff.play();
+    l.playing = true;
+    }
+  }
+
 float WeatherFx::skyOpenness(const Vec3& pos) const {
   auto* phys = owner.physic();
   if(phys==nullptr)
@@ -161,6 +204,11 @@ void WeatherFx::tick(uint64_t dt) {
     if(r.hasCol)
       ground = r.v;
     }
+
+  // sound follows intensity and is much quieter under cover
+  const float gain = shelteredGain + (1.f-shelteredGain)*openness;
+  tickLoop(rainSnd, w.rainIntensity()*gain*rainVolume, pos);
+  tickLoop(snowSnd, w.snowIntensity()*gain*snowVolume, pos);
 
   setLayer(rain,   rainLevel, pos);
   setLayer(splash, rainLevel, ground);
