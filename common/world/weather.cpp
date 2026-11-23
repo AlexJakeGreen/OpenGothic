@@ -150,11 +150,13 @@ void Weather::update(Channel& c, int64_t t) {
   }
 
 float Weather::rainIntensity() const {
-  return smoothstep(precipStartsAt, 1.f, channel[Rain].value);
+  return smoothstep(precipStartsAt, 1.f, channel[Rain].value)*(1.f-region);
   }
 
 float Weather::snowIntensity() const {
-  return smoothstep(precipStartsAt, 1.f, channel[Snow].value);
+  // in an icy region a rain window falls as snow
+  const float v = std::max(channel[Snow].value, channel[Rain].value*region);
+  return smoothstep(precipStartsAt, 1.f, v);
   }
 
 float Weather::wetness() const {

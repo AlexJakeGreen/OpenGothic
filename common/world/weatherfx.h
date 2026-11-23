@@ -69,6 +69,10 @@ class WeatherFx final {
     Shelter shelter;
     float   openness = 1.f;   // smoothed, 0..1, from the shelter
     void    tickWind(uint64_t dt);
+    void    tickRegion(uint64_t dt, const Tempest::Vec3& pos);
+    float   region = 0, regionTarget = 0;
+    bool    regionKnown = false;
+    uint64_t sinceRegionCheck = 0;
     double  windTime     = 0;
     float   windHeading  = 1000.f;
     float   windGustTilt = 1000.f;

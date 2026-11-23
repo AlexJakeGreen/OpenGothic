@@ -29,6 +29,7 @@ constexpr float areaHeight     = 800.f;
 constexpr float baseTiltDeg    = 18.f;   // rain always falls a little slanted
 constexpr float maxTiltDeg     = 45.f;
 constexpr float tiltPerWind    = 25.f;
+constexpr float regionFadeMs  = 4000.f;  // rain gives way to snow over this time
 constexpr float openThreshold  = 0.2f;   // below this the sky counts as covered
 constexpr uint64_t loopCrossfadeMs = 1500;  // overlap of the two rain sound instances
 constexpr float soundMaxDist   = 100000.f;
@@ -319,6 +320,27 @@ void WeatherFx::setLayer(Layer& l, float level, const Vec3& pos) {
     }
   }
 
+// Snow instead of rain inside music zones of the icy region; the change is smooth.
+void WeatherFx::tickRegion(uint64_t dt, const Vec3& pos) {
+  sinceRegionCheck += dt;
+  if(!regionKnown || sinceRegionCheck>=250) {
+    sinceRegionCheck = 0;
+    float target = 0.f;
+    if(auto* snd = owner.sound())
+      target = snd->isInZoneNamed(pos,"SNOW") ? 1.f : 0.f;
+    regionTarget = target;
+    if(!regionKnown) {   // first look, e.g. right after loading: no transition
+      regionKnown = true;
+      region      = target;
+      }
+    }
+  const float step = float(dt)/regionFadeMs;
+  if(region<regionTarget)
+    region = std::min(regionTarget, region+step); else
+    region = std::max(regionTarget, region-step);
+  owner.weather().setSnowRegion(region);
+  }
+
 // A global wind that changes slowly: its heading drifts, and it blows in gusts. Both rain and
 // snow lean with it; the strength scale comes from the INI (our own choice of periods).
 void WeatherFx::tickWind(uint64_t dt) {
@@ -346,6 +368,7 @@ void WeatherFx::tick(uint64_t dt) {
   const Vec3 pos = pl->position();
 
   const auto& w = owner.weather();
+  tickRegion(dt,pos);
   shelter.tick(dt,pos);
   openness = shelter.openness();
   const float open = openness>openThreshold ? openness : 0.f;

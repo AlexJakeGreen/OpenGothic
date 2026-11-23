@@ -31,6 +31,9 @@ class WorldSound final {
 
     void    aiOutput(const Tempest::Vec3& pos, std::string_view outputname);
 
+    // true when `pos` is inside any music zone whose name contains `part` (case-insensitive)
+    bool    isInZoneNamed(const Tempest::Vec3& pos, std::string_view part) const;
+
     void    tick(Npc& player);
     bool    execTriggerEvent(const TriggerEvent& e);
 

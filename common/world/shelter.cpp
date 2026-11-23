@@ -45,6 +45,13 @@ bool Shelter::isCovered(const Vec3& pos) const {
 
 void Shelter::tick(uint64_t dt, const Vec3& playerPos) {
   sinceEval += dt;
+  if(!started) {
+    started   = true;
+    sinceEval = 0;
+    target    = isCovered(playerPos) ? 0.f : 1.f;
+    open      = target;
+    return;
+    }
   if(sinceEval>=evalInterval) {
     sinceEval = 0;
     target    = isCovered(playerPos) ? 0.f : 1.f;

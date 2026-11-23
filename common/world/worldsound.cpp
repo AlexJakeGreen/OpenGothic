@@ -221,6 +221,25 @@ bool WorldSound::execTriggerEvent(const TriggerEvent& e) {
   return emitted;
   }
 
+bool WorldSound::isInZoneNamed(const Tempest::Vec3& pos, std::string_view part) const {
+  auto contains = [&](const std::string& name) {
+    if(part.empty() || name.size()<part.size())
+      return false;
+    for(size_t i=0; i+part.size()<=name.size(); ++i) {
+      size_t k = 0;
+      while(k<part.size() && std::toupper(uint8_t(name[i+k]))==std::toupper(uint8_t(part[k])))
+        ++k;
+      if(k==part.size())
+        return true;
+      }
+    return false;
+    };
+  for(auto& z : zones)
+    if(z.checkPos(pos) && contains(z.name))
+      return true;
+  return false;
+  }
+
 void WorldSound::tickSoundZone(Npc& player) {
   if(owner.tickCount()<nextSoundUpdate)
     return;

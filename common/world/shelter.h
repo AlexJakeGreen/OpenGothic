@@ -23,5 +23,6 @@ class Shelter final {
     World&   owner;
     float    open     = 1.f;   // smoothed result
     float    target   = 1.f;   // last evaluation: 1 open, 0 covered
+    bool     started  = false; // the first evaluation is applied without smoothing
     uint64_t sinceEval = 0;    // ms since the last evaluation
   };

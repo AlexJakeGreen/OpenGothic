@@ -32,7 +32,7 @@ class Weather final {
     // and ends before the sky clears.
     float rainIntensity() const;
     float snowIntensity() const;
-    bool  isThunderstorm() const { return channel[Rain].thunder && channel[Rain].value>0; }
+    bool  isThunderstorm() const { return channel[Rain].thunder && channel[Rain].value>0 && region<0.5f; }
     bool  isRaining() const { return rainIntensity()>rainThreshold; }
 
     // Lightning: driven by real elapsed time (milliseconds), separate from the game-time schedule.
@@ -46,6 +46,10 @@ class Weather final {
     void  setBolt(float azimuth, float seed) { boltAz = azimuth; boltSeed = seed; }
     float boltAzimuth() const { return boltAz;   }
     float boltShape()   const { return boltSeed; }
+
+    // 0..1: how much the player is inside an icy region; there the precipitation is snow, not rain.
+    // Set by the visual side, which smooths it so that rain gives way to snow gradually.
+    void  setSnowRegion(float v) { region = v; }
 
     // How open the sky above the player is, 0..1 (see Shelter). Set by the visual side.
     void  setOpenness(float v) { open = v; }
@@ -93,6 +97,7 @@ class Weather final {
     static constexpr float rainThreshold = 0.3f;
 
     float         open         = 1;
+    float         region       = 0;
     float         flash        = 0;
     int64_t       flashAge     = -1;   // ms since the strike, -1 when idle
     int64_t       nextStrike   = 0;    // ms until the next strike
