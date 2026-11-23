@@ -119,8 +119,10 @@ Marvin::Marvin() {
     {"toggle wayboxes",            C_Invalid},
     {"toggle waynet",              C_Invalid},
     {"version",                    C_Invalid},
-    {"zstartrain",                 C_Invalid},
-    {"zstartsnow",                 C_Invalid},
+    {"zstartrain",                 C_StartRain},
+    {"zstartsnow",                 C_StartSnow},
+    {"zstoprain",                  C_StopRain},
+    {"zstopsnow",                  C_StopSnow},
     {"ztimer multiplyer %f",       C_TimeMultiplyer},
     {"ztimer realtime",            C_TimeRealtime},
     {"ztoggle helpervisuals",      C_Invalid},
@@ -441,6 +443,22 @@ bool Marvin::exec(std::string_view v) {
       if(world==nullptr)
         return false;
       return setTime(*world, ret.argv[0], ret.argv[1]);
+      }
+    case C_StartRain:
+    case C_StopRain:
+    case C_StartSnow:
+    case C_StopSnow: {
+      World* world = Gothic::inst().world();
+      if(world==nullptr)
+        return false;
+      const gtime now = world->time();
+      switch(ret.cmd.type) {
+        case C_StartRain: world->weather().startRain(now); break;
+        case C_StopRain:  world->weather().stopRain(now);  break;
+        case C_StartSnow: world->weather().startSnow(now); break;
+        default:          world->weather().stopSnow(now);  break;
+        }
+      return true;
       }
     case C_PrintVar: {
       World* world  = Gothic::inst().world();

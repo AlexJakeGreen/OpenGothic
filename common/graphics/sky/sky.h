@@ -19,7 +19,7 @@ class Sky final {
     Sky(std::string_view wname);
     ~Sky();
 
-    void updateLight(const gtime gameTime);
+    void updateLight(const gtime gameTime, float overcast);
 
     const LightSource&        sunLight()         const { return sun;     }
     const Tempest::Vec3&      ambientLight()     const { return ambient; }

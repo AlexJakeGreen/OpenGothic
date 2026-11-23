@@ -64,7 +64,7 @@ const char* materialTag(zenkit::MaterialGroup src) {
   }
 
 World::World(GameSession& game, std::string_view file, bool startup, std::function<void(int)> loadProgress)
-  :wname(std::move(file)), game(game), wsound(game,*this), wobj(*this) {
+  :wname(std::move(file)), game(game), wweather(wname, Gothic::settingsGetI("GAME","skyEffects")!=0), wsound(game,*this), wobj(*this) {
   const auto* entry = Resources::vdfsIndex().find(wname);
 
   if(entry == nullptr) {
@@ -379,6 +379,7 @@ void World::tick(uint64_t dt) {
     return;
   wobj.tick(dt,dt);
   wdynamic->tick(dt);
+  wweather.tick(game.time());
   if(auto pl = player())
     wsound.tick(*pl);
   globFx->tick(dt);

@@ -15,6 +15,7 @@
 #include "physics/dynamicworld.h"
 #include "worldobjects.h"
 #include "worldsound.h"
+#include "weather.h"
 #include "waypoint.h"
 #include "waymatrix.h"
 
@@ -108,6 +109,8 @@ class World final {
     void                 resetPositionToTA();
 
     auto                 takeHero() -> std::unique_ptr<Npc>;
+    Weather&             weather() { return wweather; }
+    const Weather&       weather() const { return wweather; }
     Npc*                 player() const { return npcPlayer; }
     Npc*                 findNpcByInstance(size_t instance, size_t n = 0);
     Item*                findItemByInstance(size_t instance, size_t n = 0);
@@ -196,6 +199,7 @@ class World final {
     const zenkit::IFocus& searchPolicy(const Npc& pl, TargetCollect& collAlgo, TargetType& collType, WorldObjects::SearchFlg& opt) const;
     std::string                           wname;
     GameSession&                          game;
+    Weather                               wweather;
 
     std::unique_ptr<WayMatrix>            wmatrix;
 

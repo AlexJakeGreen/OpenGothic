@@ -59,6 +59,11 @@ class Marvin {
 
       C_SetTime,
 
+      C_StartRain,
+      C_StopRain,
+      C_StartSnow,
+      C_StopSnow,
+
       C_Insert,
       C_PlayAni,
 

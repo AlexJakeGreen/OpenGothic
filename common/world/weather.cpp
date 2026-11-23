@@ -1,0 +1,154 @@
+#include "weather.h"
+
+#include <algorithm>
+#include <cctype>
+
+namespace {
+// all values below are our own choice
+constexpr int64_t minute = 60*1000;
+constexpr int64_t hour   = 60*minute;
+constexpr int64_t day    = 24*hour;
+
+constexpr int64_t rainMinDuration  = 60*minute;
+constexpr int64_t rainMaxDuration  = 150*minute;
+constexpr int64_t firstRainMin     = 16*hour + 30*minute;
+constexpr int64_t firstRainMax     = 18*hour;
+constexpr int64_t manualDuration   = 90*minute;
+constexpr int64_t manualStopFade   = 5*minute;
+constexpr int     plainRainsFree   = 3;     // no lightning in the first rains
+constexpr float   thunderStep      = 0.15f; // added chance per further plain rain
+constexpr float   thunderMax       = 0.6f;
+constexpr float   rampPart         = 0.2f;  // fade in/out part of a window
+
+bool iequals(std::string_view a, std::string_view b) {
+  if(a.size()!=b.size())
+    return false;
+  for(size_t i=0; i<a.size(); ++i)
+    if(std::tolower(uint8_t(a[i]))!=std::tolower(uint8_t(b[i])))
+      return false;
+  return true;
+  }
+
+float ramp(int64_t t, int64_t begin, int64_t end) {
+  const int64_t len = end-begin;
+  if(len<=0 || t<begin || t>=end)
+    return 0;
+  const float x = float(t-begin)/float(len); // 0..1 inside the window
+  const float r = rampPart;
+  if(x<r)
+    return x/r;
+  if(x>1.f-r)
+    return (1.f-x)/r;
+  return 1.f;
+  }
+}
+
+Weather::Weather(std::string_view worldName, bool effects) : effects(effects), rng(std::random_device{}()) {
+  // worlds without a sky get no automatic weather
+  noAuto = iequals(worldName,"DRAGONISLAND.ZEN");
+  }
+
+int64_t Weather::uniform(int64_t lo, int64_t hi) {
+  if(hi<=lo)
+    return lo;
+  return std::uniform_int_distribution<int64_t>(lo,hi)(rng);
+  }
+
+bool Weather::rollThunder() {
+  if(plainRains<plainRainsFree)
+    return false;
+  const float p = std::min(thunderMax, thunderStep*float(plainRains-plainRainsFree+1));
+  return std::uniform_real_distribution<float>(0.f,1.f)(rng)<p;
+  }
+
+void Weather::openWindow(Kind k, int64_t begin, int64_t duration, bool thunder) {
+  Channel& c = channel[k];
+  c.begin    = begin;
+  c.end      = begin+duration;
+  c.active   = true;
+  c.thunder  = thunder;
+  c.stopping = false;
+  }
+
+void Weather::planDay(int64_t d) {
+  plannedDay = d;
+  if(noAuto)
+    return;
+  const int64_t dur = uniform(rainMinDuration,rainMaxDuration);
+  int64_t       off = 0;
+  if(!firstPlanned && d==0)
+    off = uniform(firstRainMin,firstRainMax); else
+    off = uniform(0,day-dur); // the window stays inside its day
+  firstPlanned = true;
+
+  // keep a manually started rain; the schedule only fills free time
+  if(channel[Rain].active)
+    return;
+  const bool thunder = rollThunder();
+  plainRains = thunder ? 0 : plainRains+1;
+  openWindow(Rain,d*day+off,dur,thunder);
+  }
+
+void Weather::update(Channel& c, int64_t t) {
+  if(c.stopping) {
+    const float k = 1.f-float(t-c.stopAt)/float(manualStopFade);
+    c.value = std::max(0.f,c.stopFrom*k);
+    if(c.value<=0) {
+      c.stopping = false;
+      c.active   = false;
+      }
+    return;
+    }
+  if(!c.active) {
+    c.value = 0;
+    return;
+    }
+  if(t>=c.end) {
+    c.active = false;
+    c.value  = 0;
+    return;
+    }
+  c.value = ramp(t,c.begin,c.end);
+  }
+
+float Weather::overcast() const {
+  return std::max(channel[Rain].value, channel[Snow].value*0.6f);
+  }
+
+void Weather::tick(gtime now) {
+  if(!effects)
+    return;
+  const int64_t t = now.toInt();
+  if(now.day()!=plannedDay)
+    planDay(now.day());
+  update(channel[Rain],t);
+  update(channel[Snow],t);
+  }
+
+void Weather::startRain(gtime now) {
+  if(!effects)
+    return;
+  const bool thunder = rollThunder();
+  plainRains = thunder ? 0 : plainRains+1;
+  openWindow(Rain,now.toInt(),manualDuration,thunder);
+  tick(now);
+  }
+
+void Weather::startSnow(gtime now) {
+  if(!effects)
+    return;
+  openWindow(Snow,now.toInt(),manualDuration,false);
+  tick(now);
+  }
+
+void Weather::stop(Kind k, gtime now) {
+  Channel& c = channel[k];
+  if(!c.active || c.value<=0)
+    return;
+  c.stopping = true;
+  c.stopAt   = now.toInt();
+  c.stopFrom = c.value;
+  }
+
+void Weather::stopRain(gtime now) { stop(Rain,now); }
+void Weather::stopSnow(gtime now) { stop(Snow,now); }

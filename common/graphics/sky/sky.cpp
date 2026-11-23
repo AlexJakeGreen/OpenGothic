@@ -79,7 +79,7 @@ float Sky::isNight() const {
   return 1.f - linearstep(-0.18f, 0.f, sun.dir().y);
   }
 
-void Sky::updateLight(const gtime gameTime) {
+void Sky::updateLight(const gtime gameTime, float overcast) {
   const int64_t now = gameTime.timeInDay().toInt();
 
   // https://www.suncalc.org/#/52.4561,13.4033,5/2020.06.28/13:09/1/3
@@ -145,8 +145,11 @@ void Sky::updateLight(const gtime gameTime) {
 
   ambient *= 0.3f;            // tuneup
 
-  sun.setColor(direct*sunMul);
-  ambient = ambient*ambMul;
+  // overcast sky: direct sun is mostly blocked, ambient dims less (our own choice of factors)
+  const float cover = std::clamp(overcast, 0.f, 1.f);
+
+  sun.setColor(direct*(sunMul*(1.f - 0.8f*cover)));
+  ambient = ambient*(ambMul*(1.f - 0.4f*cover));
   }
 
 Vec2 Sky::cloudsOffset(int layer, uint64_t tickCount) const {
