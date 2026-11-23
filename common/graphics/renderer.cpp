@@ -623,7 +623,8 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
     wview.updateRtScene();
   wview.updateLights(gameTime,
                      world!=nullptr ? world->weather().overcast()  : 0.f,
-                     world!=nullptr ? world->weather().lightning() : 0.f);
+                     world!=nullptr ? world->weather().lightning() : 0.f,
+                     world!=nullptr ? world->weather().wetness()   : 0.f);
 
   if(requiresLightsTree())
     prepareLightsBvh(cmd, wview);

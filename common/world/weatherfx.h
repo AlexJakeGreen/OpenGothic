@@ -50,7 +50,7 @@ class WeatherFx final {
     void  tickLoop(Loop& l, float volume, const Tempest::Vec3& pos);
     void  setLayer(Layer& l, float level, const Tempest::Vec3& pos);
     float skyOpenness(const Tempest::Vec3& pos) const;
-    static std::unique_ptr<ParticleFx> makeFx(const char* name, const char* texture, const char* blend);
+    static std::unique_ptr<ParticleFx> makeFx(const char* name, const char* texture, const char* blend, float aniFps = 0.f);
 
     World&  owner;
     Layer   rain, splash, snow;
@@ -61,8 +61,12 @@ class WeatherFx final {
     std::array<bool,SplashPoints>       splashOk = {};
     size_t                              splashNext = 0;
     std::minstd_rand                    rng{12345};
+    // the visible lightning bolt: a sprite far away, shown for a moment on every strike
+    std::unique_ptr<ParticleFx> boltFx;
+    PfxEmitter                  bolt;
+    float                       boltOn = 0;   // ms left while the emitter is on
+
     Loop    rainSnd, snowSnd;
-    std::vector<std::string> thunderNames;
     std::vector<Thunder>     thunder;
     size_t  thunderNext = 0;
     float   openness = 1.f;   // smoothed, 0..1

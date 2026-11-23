@@ -38,6 +38,11 @@ class Weather final {
     // true once per strike; `distanceMeters` is how far away it hit (thunder arrives later)
     bool  takeStrike(float& distanceMeters);
 
+    // How wet the world looks, 0..1: follows the rain, weaker for a sheltered player, zero for snow.
+    // Set by the visual side (it knows about shelter), read by the renderer.
+    void  setWetness(float v) { wet = v; }
+    float wetness() const     { return wet; }
+
     // how dark and heavy the sky is, 0..1 (rain dominates, snow is lighter)
     float overcast() const;
 
@@ -66,6 +71,7 @@ class Weather final {
 
     static constexpr float rainThreshold = 0.3f;
 
+    float         wet          = 0;
     float         flash        = 0;
     int64_t       flashAge     = -1;   // ms since the strike, -1 when idle
     int64_t       nextStrike   = 0;    // ms until the next strike

@@ -226,8 +226,8 @@ const Tempest::StorageBuffer& WorldView::instanceSsbo() const {
   return visuals.instanceSsbo();
   }
 
-bool WorldView::updateLights(const gtime gameTime, float overcast, float lightning) {
-  gSky.updateLight(gameTime, overcast, lightning);
+bool WorldView::updateLights(const gtime gameTime, float overcast, float lightning, float wetness) {
+  gSky.updateLight(gameTime, overcast, lightning, wetness);
   if(!gLights.updateLights())
     return false;
   sGlobal.lights = &gLights.lightsSsbo();

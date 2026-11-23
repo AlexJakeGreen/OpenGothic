@@ -87,7 +87,7 @@ float Sky::isNight() const {
   return 1.f - linearstep(-0.18f, 0.f, sun.dir().y);
   }
 
-void Sky::updateLight(const gtime gameTime, float overcastLevel, float lightningLevel) {
+void Sky::updateLight(const gtime gameTime, float overcastLevel, float lightningLevel, float wetnessLevel) {
   const int64_t now = gameTime.timeInDay().toInt();
 
   // https://www.suncalc.org/#/52.4561,13.4033,5/2020.06.28/13:09/1/3
@@ -157,11 +157,12 @@ void Sky::updateLight(const gtime gameTime, float overcastLevel, float lightning
   const float cover = std::clamp(overcastLevel, 0.f, 1.f);
   overcast = cover;
 
-  sun.setColor(direct*(sunMul*(1.f - 0.8f*cover)));
+  sun.setColor(direct*(sunMul*(1.f - 0.97f*cover))); // an overcast sky casts no visible shadows
   ambient = ambient*(ambMul*(1.f - 0.4f*cover));
 
   // a flash lights the scene from above for a moment (our own choice of strength)
   lightning = std::clamp(lightningLevel, 0.f, 1.f);
+  wetness   = std::clamp(wetnessLevel,   0.f, 1.f);
   ambient  *= 1.f + 10.f*lightning;
   }
 

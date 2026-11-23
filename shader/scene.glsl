@@ -40,6 +40,7 @@ struct SceneDesc {
   float probeGridBias;
   float overcast;
   float lightning;
+  float wetness;
   };
 
 struct LightSource {

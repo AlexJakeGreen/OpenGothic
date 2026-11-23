@@ -1,7 +1,7 @@
 #ifndef CLOUDS_GLSL
 #define CLOUDS_GLSL
 
-vec4 clouds(vec3 at, float nightPhase, vec3 highlight,
+vec4 clouds(vec3 at, float nightPhase, float overcast, vec3 highlight,
             vec2 dxy0, vec2 dxy1,
             in sampler2D dayL1,   in sampler2D dayL0,
             in sampler2D nightL1, in sampler2D nightL0) {
@@ -35,8 +35,9 @@ vec4 clouds(vec3 at, float nightPhase, vec3 highlight,
   day.rgb   = day.rgb  *highlight*5.0;
   night.rgb = night.rgb*0.000014;
 
-  day  .a   = day  .a*(1.0-nightPhase);
-  //night.a   = night.a*(nightPhase);
+  // under a rain cover the clouds stay at night too and the stars (and night layers) are hidden
+  day  .a   = day  .a*(1.0 - nightPhase*(1.0-overcast));
+  night.a   = night.a*(1.0-overcast);
 
   vec4 color = mixClr(day,night);
   // color.rgb += hday;
@@ -58,14 +59,14 @@ vec3 applyClouds(vec3 skyColor, in sampler2D skyLUT, vec3 plPos, vec3 sunDir, ve
   lum += textureSkyLUT(skyLUT, plPos, vec3( view.x, view.y*0.0,-view.z), sunDir);
   //return lum;
 
-  vec4 cloud = clouds((plPos + view*L)*0.01, nightPhase, lum,
+  vec4 cloud = clouds((plPos + view*L)*0.01, nightPhase, overcast, lum,
                       dxy0, dxy1,
                       dayL1,dayL0, nightL1,nightL0);
   // overcast: grey the clear sky, make the clouds denser and darker
   float luma = dot(skyColor, vec3(0.2126, 0.7152, 0.0722));
-  skyColor   = mix(skyColor, vec3(luma)*0.35, overcast);
+  skyColor   = mix(skyColor, vec3(luma)*0.05, overcast);
   cloud.a    = min(cloud.a*(1.0 + 4.0*overcast), 1.0);
-  cloud.rgb *= 1.0 - 0.5*overcast;
+  cloud.rgb *= 1.0 - 0.85*overcast;
   // lightning flash brightens the whole sky for a moment
   return (skyColor + cloud.rgb * cloud.a) * (1.0 + 20.0*lightning);
   // return mix(skyColor, cloud.rgb, cloud.a);

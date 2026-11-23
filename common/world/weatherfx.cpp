@@ -6,9 +6,8 @@
 #include "world/objects/npc.h"
 #include "world/world.h"
 #include "game/gamesession.h"
-#include "game/definitions/sounddefinitions.h"
-#include "sound/soundfx.h"
 #include "resources.h"
+#include "camera.h"
 #include "gothic.h"
 
 using namespace Tempest;
@@ -31,6 +30,9 @@ constexpr float baseTiltDeg    = 18.f;   // rain always falls a little slanted
 constexpr float maxTiltDeg     = 45.f;
 constexpr float tiltPerWind    = 25.f;
 constexpr float openThreshold  = 0.2f;   // below this the sky counts as covered
+constexpr float boltDistance   = 3200.f;  // cm, kept inside the particle range
+constexpr float boltCentreY    = 1100.f;  // cm above the player
+constexpr float boltOnMs       = 100.f;
 constexpr float soundMaxDist   = 100000.f;
 constexpr float rainVolume     = 1.0f;
 constexpr float snowVolume     = 0.6f;
@@ -38,13 +40,23 @@ constexpr float speedOfSound   = 343.f;  // m/s
 constexpr float thunderVolume  = 1.0f;
 constexpr float thunderFarMeters = 3000.f;
 constexpr float thunderPlaceDist = 2500.f; // cm, where the sound source is put around the player
+constexpr float shelteredWetness = 0.3f;  // wetness left when fully under cover
 constexpr float shelteredGain  = 0.12f;  // loudness when fully under cover
 }
 
-std::unique_ptr<ParticleFx> WeatherFx::makeFx(const char* name, const char* texture, const char* blend) {
+static Tempest::Sound loadThunderSample() {
+  auto s = Resources::loadSoundBuffer("NEARTHUNDER.WAV");
+  if(!s.isEmpty())
+    return s;
+  // data without the thunder sample: use a spell impact instead
+  return Resources::loadSoundBuffer("MFX_THUNDERBALL_COLLIDE.WAV");
+  }
+
+std::unique_ptr<ParticleFx> WeatherFx::makeFx(const char* name, const char* texture, const char* blend, float aniFps) {
   zenkit::IParticleEffect src {};
   src.vis_name_s       = texture;
   src.vis_alpha_func_s = blend;
+  src.vis_tex_ani_fps  = aniFps;
   src.shp_type_s       = "BOX";
   src.shp_for_s        = "OBJECT";
   src.dir_mode_s       = "DIR";
@@ -84,10 +96,11 @@ void WeatherFx::initLayers() {
     p.velAvg           = rainSpeed;
     p.lspPartAvg       = rainLife;
     p.visOrientation   = ParticleFx::Orientation::Velocity;
-    p.visSizeStart     = Vec2(3.f, 80.f);
+    // the texture holds one thin streak in the middle of a square: the quad is wide enough for it
+    p.visSizeStart     = Vec2(16.f, 90.f);
     p.visSizeEndScale  = 1.f;
-    p.visAlphaStart    = 0.6f;
-    p.visAlphaEnd      = 0.6f;
+    p.visAlphaStart    = 0.45f;   // additive: a light streak, not a bright one
+    p.visAlphaEnd      = 0.45f;
     }
 
   splash.fx = makeFx("WEATHER_SPLASH","SKYRAINSPLASH.TGA","BLEND");
@@ -98,13 +111,30 @@ void WeatherFx::initLayers() {
     p.dirAngleElev     = 90.f;
     p.velAvg           = 0.f;
     p.lspPartAvg       = splashLife;
-    p.visSizeStart     = Vec2(10.f, 10.f);   // a quick small ring that grows and fades
-    p.visSizeEndScale  = 2.5f;
-    p.visAlphaStart    = 0.8f;
+    p.visSizeStart     = Vec2(22.f, 22.f);   // a small crown of droplets that grows and fades
+    p.visSizeEndScale  = 1.8f;
+    p.visAlphaStart    = 0.9f;
     p.visAlphaEnd      = 0.f;
     }
 
-  snow.fx = makeFx("WEATHER_SNOW","SNOW.TGA","BLEND");
+  boltFx = makeFx("WEATHER_BOLT","THUNDERSTORM_LIGHTNING.TGA","ADD");
+  {
+    auto& p = *boltFx;
+    p.ppsValue         = 30.f;
+    p.shpType          = ParticleFx::EmitterType::Point;
+    p.dirAngleElev     = 90.f;
+    p.velAvg           = 0.f;
+    p.lspPartAvg       = 450.f;
+    p.visSizeStart     = Vec2(3600.f, 3600.f);
+    p.visSizeEndScale  = 1.f;
+    p.visAlphaStart    = 1.f;
+    p.visAlphaEnd      = 0.f;
+    }
+  bolt = PfxEmitter(owner, boltFx.get());
+  bolt.setLooped(true);
+  bolt.setActive(false);
+
+  snow.fx = makeFx("WEATHER_SNOW","SNOW_A0.TGA","BLEND",14.f);
   {
     auto& p = *snow.fx;
     p.ppsValue         = snowPps*perTier;
@@ -115,7 +145,7 @@ void WeatherFx::initLayers() {
     p.velAvg           = snowSpeed;
     p.velVar           = snowSpeed*0.3f;
     p.lspPartAvg       = snowLife;
-    p.visSizeStart     = Vec2(7.f, 7.f);
+    p.visSizeStart     = Vec2(50.f, 50.f); // one small flake drifting inside a square frame (26 frames)
     p.visSizeEndScale  = 1.f;
     p.visAlphaStart    = 0.9f;
     p.visAlphaEnd      = 0.9f;
@@ -183,33 +213,46 @@ void WeatherFx::initSounds() {
     };
   load(rainSnd,"RAIN_01.WAV");
   load(snowSnd,"SNOW_01.WAV");
-
-  // thunder samples are whatever sound definitions mention THUNDER
-  thunderNames = Gothic::sfx().namesContaining("THUNDER");
   }
 
 void WeatherFx::tickThunder(uint64_t dt, const Vec3& pos) {
   auto* game = Gothic::inst().gameSession();
 
   float dist = 0;
-  if(game!=nullptr && !thunderNames.empty() && owner.weather().takeStrike(dist)) {
-    // pick samples in turn; the sound arrives after the flash, later when the strike is far
-    auto* fx = Gothic::inst().loadSoundFx(thunderNames[thunderNext%thunderNames.size()]);
+  if(owner.weather().takeStrike(dist)) {
+    // the strike is somewhere in front of the camera, so that the flash can be seen
+    Vec3 front = Vec3(0.f,0.f,1.f);
+    if(auto* cam = Gothic::inst().camera())
+      front = cam->listenerPosition().front;
+    const float base = std::atan2(front.z, front.x);
+    const float a    = base + (float(rng()%1000)/1000.f - 0.5f)*1.6f;  // within about +-45 degrees
+    const Vec3  dir  = Vec3(std::cos(a),0.f,std::sin(a));
+
+    bolt.setPosition(pos + dir*boltDistance + Vec3(0.f,boltCentreY,0.f));
+    bolt.setActive(true);
+    boltOn = boltOnMs;
+
+    // the sound arrives after the flash, later when the strike is far
+    auto raw = loadThunderSample();
     ++thunderNext;
-    bool loop = false;
-    if(fx!=nullptr) {
+    if(game!=nullptr && !raw.isEmpty()) {
       Thunder t;
-      t.eff = game->loadSound(*fx,loop);
+      t.eff = game->loadSound(raw);
       if(!t.eff.isEmpty()) {
         const float k = std::clamp(1.f - dist/thunderFarMeters, 0.15f, 1.f);
-        const float a = float(thunderNext)*2.4f; // direction: spread around the player
         t.eff.setMaxDistance(soundMaxDist);
-        t.eff.setPosition(pos + Vec3(std::cos(a),0.f,std::sin(a))*thunderPlaceDist);
+        t.eff.setPosition(pos + dir*thunderPlaceDist);
         t.eff.setVolume(thunderVolume*k*(shelteredGain*2.f+(1.f-shelteredGain*2.f)*openness));
         t.delay = dist/speedOfSound*1000.f;
         thunder.push_back(std::move(t));
         }
       }
+    }
+
+  if(boltOn>0.f) {
+    boltOn -= float(dt);
+    if(boltOn<=0.f)
+      bolt.setActive(false);
     }
 
   for(size_t i=0; i<thunder.size();) {
@@ -291,6 +334,9 @@ void WeatherFx::tick(uint64_t dt) {
 
   const float rainLevel = w.rainIntensity()*open;
   const float snowLevel = w.snowIntensity()*open;
+
+  // surfaces get wet with the rain (not snow), less so when the player is under cover
+  owner.weather().setWetness(w.rainIntensity()*(shelteredWetness + (1.f-shelteredWetness)*openness));
 
   // sound follows intensity and is much quieter under cover
   const float gain = shelteredGain + (1.f-shelteredGain)*openness;
