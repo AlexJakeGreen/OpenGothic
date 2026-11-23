@@ -196,6 +196,8 @@ Gothic::Gothic(GameModDescriptor desc) {
   defaults->set("GAME", "scaleVideos", 1);
 
   defaults->set("GAME", "skyEffects", 1);
+  defaults->set("GAME", "weatherRainFrequency", 1.f);   // rain windows per game day
+  defaults->set("GAME", "weatherPermanentStorm", 0);    // debugging: constant thunderstorm
   defaults->set("SKY_OUTDOOR", "zSunName",   "unsun5.tga");
   defaults->set("SKY_OUTDOOR", "zSunSize",   200);
   defaults->set("SKY_OUTDOOR", "zSunAlpha",  230);

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <random>
 #include <string_view>
+#include <vector>
 
 #include "game/gametime.h"
 
@@ -16,7 +17,8 @@ class Weather final {
       };
 
     // `effects` mirrors the GAME/skyEffects setting: false means no weather at all
-    Weather(std::string_view worldName, bool effects);
+    // `rainPerDay`: rain windows per game day, fractional allowed. `permanentStorm`: debugging aid.
+    Weather(std::string_view worldName, bool effects, float rainPerDay = 1.f, bool permanentStorm = false);
 
     void  tick(gtime now);
 
@@ -67,7 +69,13 @@ class Weather final {
       float   value    = 0;
       };
 
+    struct Planned final {
+      int64_t begin;
+      int64_t duration;
+      };
+
     void    planDay(int64_t day);
+    void    startPlanned(int64_t t);
     void    openWindow(Kind k, int64_t begin, int64_t duration, bool thunder);
     void    stop(Kind k, gtime now);
     void    update(Channel& c, int64_t t);
@@ -88,6 +96,9 @@ class Weather final {
     Channel       channel[2];
     bool          noAuto       = false;
     bool          effects      = true;
+    float         rainPerDay   = 1.f;
+    bool          permanentStorm = false;
+    std::vector<Planned> plan;
     bool          firstPlanned = false;
     int64_t       plannedDay   = -1;
     int           plainRains   = 0;   // rains since the last thunderstorm

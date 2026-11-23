@@ -4,9 +4,6 @@
 #include <cctype>
 
 namespace {
-// TEMPORARY, for manual testing: keeps rain at full intensity. Remove before finishing.
-constexpr bool debugAlwaysRain = true;
-
 // all values below are our own choice
 constexpr int64_t minute = 60*1000;
 constexpr int64_t hour   = 60*minute;
@@ -51,7 +48,8 @@ float ramp(int64_t t, int64_t begin, int64_t end) {
   }
 }
 
-Weather::Weather(std::string_view worldName, bool effects) : effects(effects), rng(std::random_device{}()) {
+Weather::Weather(std::string_view worldName, bool effects, float rainPerDay, bool permanentStorm)
+  : effects(effects), rainPerDay(std::max(0.f,rainPerDay)), permanentStorm(permanentStorm), rng(std::random_device{}()) {
   // worlds without a sky get no automatic weather
   noAuto = iequals(worldName,"DRAGONISLAND.ZEN");
   }
@@ -80,21 +78,43 @@ void Weather::openWindow(Kind k, int64_t begin, int64_t duration, bool thunder) 
 
 void Weather::planDay(int64_t d) {
   plannedDay = d;
-  if(noAuto)
+  plan.clear();
+  if(noAuto || rainPerDay<=0.f)
     return;
-  const int64_t dur = uniform(rainMinDuration,rainMaxDuration);
-  int64_t       off = 0;
-  if(!firstPlanned && d==0)
-    off = uniform(firstRainMin,firstRainMax); else
-    off = uniform(0,day-dur); // the window stays inside its day
+
+  // the first rain of a new game falls in the late afternoon of the first day
+  if(!firstPlanned && d==0) {
+    firstPlanned = true;
+    plan.push_back({d*day + uniform(firstRainMin,firstRainMax), uniform(rainMinDuration,rainMaxDuration)});
+    return;
+    }
   firstPlanned = true;
 
-  // keep a manually started rain; the schedule only fills free time
-  if(channel[Rain].active)
-    return;
-  const bool thunder = rollThunder();
-  plainRains = thunder ? 0 : plainRains+1;
-  openWindow(Rain,d*day+off,dur,thunder);
+  // whole part of the frequency always happens, the fractional part is a chance
+  int n = int(rainPerDay);
+  if(std::uniform_real_distribution<float>(0.f,1.f)(rng) < rainPerDay-float(n))
+    ++n;
+
+  // one window per equal part of the day, so windows never overlap and stay inside the day
+  for(int i=0; i<n; ++i) {
+    const int64_t slotBegin = day*i/n;
+    const int64_t slotEnd   = day*(i+1)/n;
+    const int64_t dur       = std::min(uniform(rainMinDuration,rainMaxDuration), slotEnd-slotBegin);
+    plan.push_back({d*day + uniform(slotBegin,slotEnd-dur), dur});
+    }
+  }
+
+// starts a planned window when its time has come; a manual rain in progress is left alone
+void Weather::startPlanned(int64_t t) {
+  while(!plan.empty() && t>=plan.front().begin) {
+    const Planned p = plan.front();
+    plan.erase(plan.begin());
+    if(t>=p.begin+p.duration || channel[Rain].active)
+      continue;
+    const bool thunder = rollThunder();
+    plainRains = thunder ? 0 : plainRains+1;
+    openWindow(Rain,p.begin,p.duration,thunder);
+    }
   }
 
 void Weather::update(Channel& c, int64_t t) {
@@ -129,9 +149,10 @@ void Weather::tick(gtime now) {
   const int64_t t = now.toInt();
   if(now.day()!=plannedDay)
     planDay(now.day());
+  startPlanned(t);
   update(channel[Rain],t);
   update(channel[Snow],t);
-  if(debugAlwaysRain) {
+  if(permanentStorm && !noAuto) {
     channel[Rain].value   = 1.f;
     channel[Rain].thunder = true;
     }
