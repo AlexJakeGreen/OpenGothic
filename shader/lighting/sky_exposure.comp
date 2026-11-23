@@ -118,7 +118,7 @@ void main() {
     scene.sunColor     = sunColor * clouds * push.sunOcclusion;
     scene.ambient      = ambient  * clouds;
     // keep an overcast sky dark: do not let auto-exposure fully cancel the dimmed light
-    const float overcastDim = mix(1.0, 0.4, scene.overcast);
+    const float overcastDim = mix(1.0, 0.4, scene.overcastLight);
     scene.exposure     = overcastDim / max(lum*1.25 + push.baseL, 0.0000001);
     //scene.exposure     = 1.0 / max(6400, 0.0000005);
     scene.luminanceMed = lum;

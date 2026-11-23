@@ -21,7 +21,8 @@ class Sky final {
 
     // what the weather asks of the sky and lighting
     struct WeatherState final {
-      float overcast    = 0;
+      float overcast      = 0;   // the sky and haze
+      float overcastLight = 0;   // scene lighting: weaker under cover
       float lightning   = 0;
       float wetness     = 0;
       float boltAzimuth = 0;   // world azimuth of the lightning bolt, radians
@@ -38,9 +39,11 @@ class Sky final {
     const Tempest::Texture2d& sunImage()  const { return *sunImg;  }
     const Tempest::Texture2d& moonImage() const { return *moonImg; }
 
-    // dense rain clouds replace the day layers once the sky is mostly covered
-    const State&              cloudsDay()   const { return (overcast>=rainLayerAt && rainClouds.lay[0]!=nullptr) ? rainClouds : clouds[0]; }
+    const State&              cloudsDay()   const { return clouds[0]; }
+    // dense rain clouds: the shader blends them in with the overcast value
+    const Tempest::Texture2d& cloudsRain()  const { return *rainImg; }
     float                     overcastLevel() const { return overcast; }
+    float                     overcastLightLevel() const { return overcastLight; }
     float                     lightningLevel() const { return lightning; }
     float                     wetnessLevel()   const { return wetness;   }
     float                     boltAzimuth()    const { return boltAz;    }
@@ -58,14 +61,14 @@ class Sky final {
     Tempest::Vec3                 ambient;
 
     State                         clouds[2]; //day, night;
-    State                         rainClouds;
+    const Tempest::Texture2d*     rainImg = &Resources::fallbackBlack();
     float                         overcast = 0;
+    float                         overcastLight = 0;
     float                         lightning = 0;
     float                         wetness   = 0;
     float                         boltAz    = 0;
     float                         boltSeed  = 0;
     const Tempest::Texture2d*     boltImg   = &Resources::fallbackBlack();
-    static constexpr float        rainLayerAt = 0.5f; // our own choice
 
     const Tempest::Texture2d*     sunImg   = &Resources::fallbackBlack();
     const Tempest::Texture2d*     moonImg  = &Resources::fallbackBlack();

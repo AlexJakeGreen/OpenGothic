@@ -25,6 +25,7 @@ layout(binding = 8) uniform sampler2D textureNightL0;
 layout(binding = 9) uniform sampler2D textureNightL1;
 
 layout(binding = 10) uniform sampler2D textureBolt;
+layout(binding = 11) uniform sampler2D textureRain;
 
 layout(location = 0) out vec4 outColor;
 
@@ -94,7 +95,7 @@ vec3 applyClouds(vec3 skyColor) {
   vec3  viewDir  = normalize(pos1);
   return applyClouds(skyColor, skyLUT, plPos, scene.sunDir, viewDir, night, scene.overcast, scene.lightning,
                      scene.cloudsDir.xy, scene.cloudsDir.zw,
-                     textureDayL1,textureDayL0, textureNightL1,textureNightL0);
+                     textureDayL1,textureDayL0, textureNightL1,textureNightL0, textureRain);
   }
 
 // Lightning bolt: the texture is placed on the sky around the strike azimuth. The seed mirrors,

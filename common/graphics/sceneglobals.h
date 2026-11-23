@@ -121,6 +121,7 @@ class SceneGlobals final {
 
       float                           probeGridBias = 3;
       float                           overcast = 0;
+      float                           overcastLight = 0;
       float                           lightning = 0;
       float                           wetness = 0;
       float                           boltAzimuth = 0;

@@ -54,11 +54,11 @@ Sky::Sky(std::string_view wname) {
     }
 
   // optional: without the texture the normal layers stay (only darkened by the shader)
+  // without the texture the normal day layer stands in for it
+  rainImg = clouds[0].lay[0];
   if(auto* rain = Resources::loadTexture("SKYRAINCLOUDS.TGA", true)) {
-    if(rain!=&Resources::fallbackTexture()) {
-      rainClouds.lay[0] = rain;
-      rainClouds.lay[1] = rain;
-      }
+    if(rain!=&Resources::fallbackTexture())
+      rainImg = rain;
     }
 
   if(auto* bolt = Resources::loadTexture("THUNDERSTORM_LIGHTNING.TGA"))
@@ -163,10 +163,14 @@ void Sky::updateLight(const gtime gameTime, const WeatherState& weather) {
   ambient *= 0.3f;            // tuneup
 
   // overcast sky: direct sun is mostly blocked, ambient dims less (our own choice of factors)
-  const float cover = std::clamp(overcastLevel, 0.f, 1.f);
-  overcast = cover;
+  overcast      = std::clamp(overcastLevel, 0.f, 1.f);
+  overcastLight = std::clamp(weather.overcastLight, 0.f, 1.f);
+  const float cover = overcastLight;
 
-  sun.setColor(direct*(sunMul*(1.f - 0.97f*cover))); // an overcast sky casts no visible shadows
+  // The sun is gone under any rain, even for a player who stands in a doorway looking out: the
+  // outdoors seen through a door must not be sunlit. Ambient light dims less under cover, so that
+  // rooms stay readable.
+  sun.setColor(direct*(sunMul*(1.f - 0.97f*overcast))); // an overcast sky casts no visible shadows
   ambient = ambient*(ambMul*(1.f - 0.4f*cover));
 
   // a flash lights the scene from above for a moment (our own choice of strength)

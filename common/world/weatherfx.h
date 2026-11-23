@@ -33,9 +33,11 @@ class WeatherFx final {
       std::array<PfxEmitter,Tiers>    em;
       };
 
+    // A seamless loop: two instances of the same sample, the next one starts before the first
+    // ends and the two cross-fade, so that there is no gap at the loop point.
     struct Loop final {
-      Tempest::SoundEffect eff;
-      bool                 playing = false;
+      Tempest::SoundEffect eff[2];
+      bool                 playing[2] = {};
       };
 
     struct Thunder final {

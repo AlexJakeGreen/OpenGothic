@@ -28,10 +28,12 @@ class Weather final {
     void  startSnow(gtime now);
     void  stopSnow (gtime now);
 
-    float rainIntensity() const { return channel[Rain].value; }
-    float snowIntensity() const { return channel[Snow].value; }
+    // Precipitation (drops, sound, wetness): it starts only after the sky has closed in,
+    // and ends before the sky clears.
+    float rainIntensity() const;
+    float snowIntensity() const;
     bool  isThunderstorm() const { return channel[Rain].thunder && channel[Rain].value>0; }
-    bool  isRaining() const { return channel[Rain].value>rainThreshold; }
+    bool  isRaining() const { return rainIntensity()>rainThreshold; }
 
     // Lightning: driven by real elapsed time (milliseconds), separate from the game-time schedule.
     void  tickLightning(uint64_t dt);
@@ -45,10 +47,13 @@ class Weather final {
     float boltAzimuth() const { return boltAz;   }
     float boltShape()   const { return boltSeed; }
 
+    // How open the sky above the player is, 0..1 (see Shelter). Set by the visual side.
+    void  setOpenness(float v) { open = v; }
+
     // How wet the world looks, 0..1: follows the rain, weaker for a sheltered player, zero for snow.
-    // Set by the visual side (it knows about shelter), read by the renderer.
-    void  setWetness(float v) { wet = v; }
-    float wetness() const     { return wet; }
+    float wetness() const;
+    // Overcast as seen by scene lighting (sun, exposure): weaker under cover. The sky and haze use overcast().
+    float overcastLight() const;
 
     // how dark and heavy the sky is, 0..1 (rain dominates, snow is lighter)
     float overcast() const;
@@ -60,6 +65,8 @@ class Weather final {
     struct Channel final {
       int64_t begin   = 0;      // window begin, game milliseconds
       int64_t end     = 0;      // window end
+      int64_t rampIn  = 0;      // fade-in time
+      int64_t rampOut = 0;      // fade-out time
       bool    active  = false;
       bool    thunder = false;
       // forced fade-out (manual stop): linear decay from `stopFrom` starting at `stopAt`
@@ -76,7 +83,8 @@ class Weather final {
 
     void    planDay(int64_t day);
     void    startPlanned(int64_t t);
-    void    openWindow(Kind k, int64_t begin, int64_t duration, bool thunder);
+    // `fade` is the fade-in/out time in game milliseconds, negative: a part of the window
+    void    openWindow(Kind k, int64_t begin, int64_t duration, bool thunder, int64_t fade = -1);
     void    stop(Kind k, gtime now);
     void    update(Channel& c, int64_t t);
     bool    rollThunder();
@@ -84,7 +92,7 @@ class Weather final {
 
     static constexpr float rainThreshold = 0.3f;
 
-    float         wet          = 0;
+    float         open         = 1;
     float         flash        = 0;
     int64_t       flashAge     = -1;   // ms since the strike, -1 when idle
     int64_t       nextStrike   = 0;    // ms until the next strike

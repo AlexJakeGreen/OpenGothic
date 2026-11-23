@@ -14,7 +14,7 @@ constexpr int64_t rainMaxDuration  = 150*minute;
 constexpr int64_t firstRainMin     = 16*hour + 30*minute;
 constexpr int64_t firstRainMax     = 18*hour;
 constexpr int64_t manualDuration   = 90*minute;
-constexpr int64_t manualStopFade   = 5*minute;
+constexpr int64_t manualFade       = 220*1000; // fade of a window started by hand, about 15 s of real time
 constexpr int     plainRainsFree   = 3;     // no lightning in the first rains
 constexpr float   thunderStep      = 0.15f; // added chance per further plain rain
 constexpr float   thunderMax       = 0.6f;
@@ -23,6 +23,10 @@ constexpr int64_t strikeGapMax     = 22000;
 constexpr float   strikeDistMin    = 300.f;  // metres
 constexpr float   strikeDistMax    = 2500.f;
 constexpr float   stormMinRain     = 0.4f;   // no lightning while the rain is still weak
+constexpr float   shelteredWetness = 0.3f;  // wetness left when fully under cover
+constexpr float   shelteredLight   = 0.4f;  // overcast seen by the lighting when fully under cover
+constexpr float   cloudsDoneAt    = 0.35f;  // window profile at which the sky is fully overcast
+constexpr float   precipStartsAt  = 0.30f;  // and from which precipitation begins
 constexpr float   rampPart         = 0.2f;  // fade in/out part of a window
 
 bool iequals(std::string_view a, std::string_view b) {
@@ -34,17 +38,20 @@ bool iequals(std::string_view a, std::string_view b) {
   return true;
   }
 
-float ramp(int64_t t, int64_t begin, int64_t end) {
+float ramp(int64_t t, int64_t begin, int64_t end, int64_t rampIn, int64_t rampOut) {
   const int64_t len = end-begin;
   if(len<=0 || t<begin || t>=end)
     return 0;
-  const float x = float(t-begin)/float(len); // 0..1 inside the window
-  const float r = rampPart;
-  if(x<r)
-    return x/r;
-  if(x>1.f-r)
-    return (1.f-x)/r;
+  if(rampIn>0 && t<begin+rampIn)
+    return float(t-begin)/float(rampIn);
+  if(rampOut>0 && t>end-rampOut)
+    return float(end-t)/float(rampOut);
   return 1.f;
+  }
+
+float smoothstep(float e0, float e1, float x) {
+  const float t = std::min(std::max((x-e0)/(e1-e0), 0.f), 1.f);
+  return t*t*(3.f-2.f*t);
   }
 }
 
@@ -67,8 +74,11 @@ bool Weather::rollThunder() {
   return std::uniform_real_distribution<float>(0.f,1.f)(rng)<p;
   }
 
-void Weather::openWindow(Kind k, int64_t begin, int64_t duration, bool thunder) {
+void Weather::openWindow(Kind k, int64_t begin, int64_t duration, bool thunder, int64_t fade) {
   Channel& c = channel[k];
+  // scheduled windows fade over a fifth of their length at each end; manual ones over a fixed short time
+  c.rampIn   = fade>=0 ? fade : int64_t(float(duration)*rampPart);
+  c.rampOut  = c.rampIn;
   c.begin    = begin;
   c.end      = begin+duration;
   c.active   = true;
@@ -119,7 +129,7 @@ void Weather::startPlanned(int64_t t) {
 
 void Weather::update(Channel& c, int64_t t) {
   if(c.stopping) {
-    const float k = 1.f-float(t-c.stopAt)/float(manualStopFade);
+    const float k = 1.f-float(t-c.stopAt)/float(manualFade);
     c.value = std::max(0.f,c.stopFrom*k);
     if(c.value<=0) {
       c.stopping = false;
@@ -136,11 +146,28 @@ void Weather::update(Channel& c, int64_t t) {
     c.value  = 0;
     return;
     }
-  c.value = ramp(t,c.begin,c.end);
+  c.value = ramp(t,c.begin,c.end,c.rampIn,c.rampOut);
+  }
+
+float Weather::rainIntensity() const {
+  return smoothstep(precipStartsAt, 1.f, channel[Rain].value);
+  }
+
+float Weather::snowIntensity() const {
+  return smoothstep(precipStartsAt, 1.f, channel[Snow].value);
+  }
+
+float Weather::wetness() const {
+  return rainIntensity()*(shelteredWetness + (1.f-shelteredWetness)*open);
+  }
+
+float Weather::overcastLight() const {
+  return overcast()*(shelteredLight + (1.f-shelteredLight)*open);
   }
 
 float Weather::overcast() const {
-  return std::max(channel[Rain].value, channel[Snow].value*0.6f);
+  // the sky closes in first: fully overcast before the precipitation really starts
+  return smoothstep(0.f, cloudsDoneAt, std::max(channel[Rain].value, channel[Snow].value*0.6f));
   }
 
 void Weather::tick(gtime now) {
@@ -212,14 +239,14 @@ void Weather::startRain(gtime now) {
     return;
   const bool thunder = rollThunder();
   plainRains = thunder ? 0 : plainRains+1;
-  openWindow(Rain,now.toInt(),manualDuration,thunder);
+  openWindow(Rain,now.toInt(),manualDuration,thunder,manualFade);
   tick(now);
   }
 
 void Weather::startSnow(gtime now) {
   if(!effects)
     return;
-  openWindow(Snow,now.toInt(),manualDuration,false);
+  openWindow(Snow,now.toInt(),manualDuration,false,manualFade);
   tick(now);
   }
 

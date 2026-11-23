@@ -30,6 +30,7 @@ constexpr float baseTiltDeg    = 18.f;   // rain always falls a little slanted
 constexpr float maxTiltDeg     = 45.f;
 constexpr float tiltPerWind    = 25.f;
 constexpr float openThreshold  = 0.2f;   // below this the sky counts as covered
+constexpr uint64_t loopCrossfadeMs = 1500;  // overlap of the two rain sound instances
 constexpr float soundMaxDist   = 100000.f;
 constexpr float rainVolume     = 1.0f;
 constexpr float snowVolume     = 0.6f;
@@ -37,7 +38,6 @@ constexpr float speedOfSound   = 343.f;  // m/s
 constexpr float thunderVolume  = 1.0f;
 constexpr float thunderFarMeters = 3000.f;
 constexpr float thunderPlaceDist = 2500.f; // cm, where the sound source is put around the player
-constexpr float shelteredWetness = 0.3f;  // wetness left when fully under cover
 constexpr float shelteredGain  = 0.12f;  // loudness when fully under cover
 }
 
@@ -185,11 +185,13 @@ void WeatherFx::initSounds() {
     auto raw = Resources::loadSoundBuffer(name);
     if(raw.isEmpty())
       return;
-    l.eff = game->loadSound(raw);
-    if(l.eff.isEmpty())
-      return;
-    l.eff.setMaxDistance(soundMaxDist);
-    l.eff.setVolume(0.f);
+    for(auto& e : l.eff) {
+      e = game->loadSound(raw);
+      if(e.isEmpty())
+        return;
+      e.setMaxDistance(soundMaxDist);
+      e.setVolume(0.f);
+      }
     };
   load(rainSnd,"RAIN_01.WAV");
   load(snowSnd,"SNOW_01.WAV");
@@ -249,20 +251,51 @@ void WeatherFx::tickThunder(uint64_t dt, const Vec3& pos) {
   }
 
 void WeatherFx::tickLoop(Loop& l, float volume, const Vec3& pos) {
-  if(l.eff.isEmpty())
+  if(l.eff[0].isEmpty() || l.eff[1].isEmpty())
     return;
+
   if(volume<=0.001f) {
-    if(l.playing) {
-      l.eff.pause();
-      l.playing = false;
-      }
+    for(int i=0; i<2; ++i)
+      if(l.playing[i]) {
+        l.eff[i].pause();
+        l.playing[i] = false;
+        }
     return;
     }
-  l.eff.setPosition(pos);
-  l.eff.setVolume(volume);
-  if(!l.playing || l.eff.isFinished()) { // the sample is restarted by hand to loop
-    l.eff.play();
-    l.playing = true;
+
+  // an instance that the sound device reports as finished (or never started) is not playing
+  for(int i=0; i<2; ++i)
+    if(l.playing[i] && l.eff[i].isFinished())
+      l.playing[i] = false;
+
+  uint64_t length = l.eff[0].timeLength();
+  uint64_t fade   = std::min<uint64_t>(loopCrossfadeMs, length/3);
+
+  // start the other instance when the first one nears its end; start one at all if none plays
+  if(!l.playing[0] && !l.playing[1]) {
+    l.eff[0].play();
+    l.playing[0] = true;
+    }
+  for(int i=0; i<2; ++i) {
+    const int other = 1-i;
+    if(l.playing[i] && !l.playing[other] && length>0 && l.eff[i].currentTime()+fade>=length) {
+      l.eff[other].play();
+      l.playing[other] = true;
+      }
+    }
+
+  for(int i=0; i<2; ++i) {
+    if(!l.playing[i])
+      continue;
+    float k = 1.f;
+    if(fade>0) {
+      const uint64_t t = l.eff[i].currentTime();
+      k = std::min(1.f, float(t)/float(fade));              // fade in
+      if(length>t)
+        k = std::min(k, float(length-t)/float(fade));       // fade out
+      }
+    l.eff[i].setPosition(pos);
+    l.eff[i].setVolume(volume*k);
     }
   }
 
@@ -291,8 +324,8 @@ void WeatherFx::tick(uint64_t dt) {
   const float rainLevel = w.rainIntensity()*open;
   const float snowLevel = w.snowIntensity()*open;
 
-  // surfaces get wet with the rain (not snow), less so when the player is under cover
-  owner.weather().setWetness(w.rainIntensity()*(shelteredWetness + (1.f-shelteredWetness)*openness));
+  // wetness and the light darkening are weaker when the player is under cover
+  owner.weather().setOpenness(openness);
 
   // sound follows intensity and is much quieter under cover
   const float gain = shelteredGain + (1.f-shelteredGain)*openness;
